@@ -1,9 +1,9 @@
 import { createBrowserRouter, Navigate, Outlet } from "react-router-dom";
 import { Suspense } from "react";
 import Login from "../contexts/auth/Login";
-// import ProtectedRoute from "./protectedRoute";
-// import WordAlignment from "@/components/WordAlignment";
-// import AdminPage from "@/components/AdminPage";
+import HomePage from "../HomePage";
+import ProtectedRoute from "./protectedRoute";
+import AdminPage from "../AdminPage";
 import PageNotFound from "./pageNotFound";
 
 const App = () => {
@@ -27,24 +27,24 @@ export const Router = createBrowserRouter([
 
     children: [
       { path: "", element: <Login /> },
-      //   {
-      //     path: "/admin",
-      //     element: (
-      //       <ProtectedRoute requiredRole="Admin">
-      //         <AdminPage />
-      //       </ProtectedRoute>
-      //     ),
-      //     errorElement: <PageNotFound />,
-      //   },
-      //   {
-      //     path: "/alignment",
-      //     element: (
-      //       <ProtectedRoute>
-      //         <WordAlignment />
-      //       </ProtectedRoute>
-      //     ),
-      //     errorElement: <PageNotFound />,
-      //   },
+      {
+        path: "/admin",
+        element: (
+          <ProtectedRoute requiredRole="Admin">
+            <AdminPage />
+          </ProtectedRoute>
+        ),
+        errorElement: <PageNotFound />,
+      },
+      {
+        path: "/homepage",
+        element: (
+          <ProtectedRoute>
+            <HomePage />
+          </ProtectedRoute>
+        ),
+        errorElement: <PageNotFound />,
+      },
     ],
     errorElement: <PageNotFound />,
   },

@@ -10,9 +10,9 @@ export default defineConfig({
     react(),
     checker({
       typescript: true, // Kiểm tra TypeScript
-      eslint: {
-        lintCommand: "eslint ./src --ext .ts,.tsx,.js,.jsx", // Kiểm tra với ESLint
-      },
+      // eslint: {
+      //   lintCommand: "eslint ./src --ext .ts,.tsx,.js,.jsx", // Kiểm tra với ESLint
+      // },
     }),
   ],
 

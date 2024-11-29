@@ -24,7 +24,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [userRole, setUserRole] = useState<string | null>(null);
   const client = new Client()
     .setEndpoint("https://store.hjm.bid/v1")
-    .setProject("67468bb80025854908e3");
+    .setProject("674818e10034704a2276");
 
   const databases = new Databases(client);
   const account = new Account(client);
@@ -76,7 +76,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           color: "red",
           icon: <span className="ri-alert-circle-line" />,
         });
-        console.log("You are offline.");
       }
     };
 

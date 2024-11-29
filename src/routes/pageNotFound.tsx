@@ -1,22 +1,36 @@
-import { FC } from "react";
-import { Link } from "react-router-dom";
-
-interface PageNotFoundProps {}
-
-const PageNotFound: FC<PageNotFoundProps> = ({}) => {
+export default function Example() {
   return (
-    <div className="w-screen h-screen flex items-center justify-center">
-      <div className="w-1/2 h-1/2">
-        <div className="mt-3 w-full flex flex-col items-center">
-          <h3 className="text-uppercase">Sorry, Page not Found 😭</h3>
-          <p className="mb-4">The page you are looking for not available!</p>
-          <Link className="flex gap-2" to="../">
-            <i className="mgc_arrow_left_line"></i>Go back
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
-};
+    <>
+      {/*
+        This example requires updating your template:
 
-export default PageNotFound;
+        ```
+        <html class="h-full">
+        <body class="h-full">
+        ```
+      */}
+      <main className="grid min-h-full place-items-center bg-white px-6 py-24 sm:py-32 lg:px-8">
+        <div className="text-center">
+          <p className="text-base font-semibold text-indigo-600">404</p>
+          <h1 className="mt-4 text-balance text-5xl font-semibold tracking-tight text-gray-900 sm:text-7xl">
+            Page not found
+          </h1>
+          <p className="mt-6 text-pretty text-lg font-medium text-gray-500 sm:text-xl/8">
+            Sorry, we couldn’t find the page you’re looking for.
+          </p>
+          <div className="mt-10 flex items-center justify-center gap-x-6">
+            <a
+              href="../"
+              className="rounded-md bg-indigo-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+            >
+              Go back home
+            </a>
+            <a href="#" className="text-sm font-semibold text-gray-900">
+              Contact support <span aria-hidden="true">&rarr;</span>
+            </a>
+          </div>
+        </div>
+      </main>
+    </>
+  );
+}
