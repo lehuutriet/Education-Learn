@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "./authProvider";
 import IconEdu from "../../image/IconEdu.jpg";
 import { useNavigate } from "react-router-dom";
+import { Eye, EyeOff } from "lucide-react"; // Import Eye icons
+
 const Login: React.FC = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -9,11 +11,11 @@ const Login: React.FC = () => {
   const [success, setSuccess] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false); // Add state for password visibility
   const navigate = useNavigate();
   const { account } = useAuth();
 
   useEffect(() => {
-    // Retrieve email and password from localStorage if they exist
     const storedEmail = localStorage.getItem("rememberedEmail");
     const storedPassword = localStorage.getItem("rememberedPassword");
     if (storedEmail && storedPassword) {
@@ -32,16 +34,13 @@ const Login: React.FC = () => {
           "No internet connection. Please try again when online."
         );
       }
-      // Create the session
       const session = await account.createEmailPasswordSession(email, password);
       const sessionKey = session.$id;
-      console.log("Session Key:", sessionKey);
       localStorage.setItem("sessionKey", sessionKey);
       const user = await account.get();
       setSuccess("Login successful!");
       setError("");
 
-      // Handle "Remember Me" functionality
       if (rememberMe) {
         localStorage.setItem("rememberedEmail", email);
         localStorage.setItem("rememberedPassword", password);
@@ -66,6 +65,11 @@ const Login: React.FC = () => {
     setIsSubmitting(false);
   };
 
+  // Toggle password visibility
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-md bg-white shadow-md rounded-xl overflow-hidden">
@@ -83,7 +87,6 @@ const Login: React.FC = () => {
           </h1>
 
           <form onSubmit={handleLogin} className="space-y-4">
-            {/* Error Message */}
             {error && (
               <div
                 className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative"
@@ -93,7 +96,6 @@ const Login: React.FC = () => {
               </div>
             )}
 
-            {/* Success Message */}
             {success && (
               <div
                 className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative"
@@ -103,7 +105,6 @@ const Login: React.FC = () => {
               </div>
             )}
 
-            {/* Email Input */}
             <div>
               <label
                 htmlFor="email"
@@ -122,7 +123,6 @@ const Login: React.FC = () => {
               />
             </div>
 
-            {/* Password Input */}
             <div>
               <label
                 htmlFor="password"
@@ -130,18 +130,30 @@ const Login: React.FC = () => {
               >
                 Password
               </label>
-              <input
-                type="password"
-                id="password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  id="password"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={togglePasswordVisibility}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-500" />
+                  ) : (
+                    <Eye className="h-5 w-5 text-gray-400 hover:text-gray-500" />
+                  )}
+                </button>
+              </div>
             </div>
 
-            {/* Remember Me and Forgot Password */}
             <div className="flex items-center justify-between">
               <div className="flex items-center">
                 <input
@@ -168,7 +180,6 @@ const Login: React.FC = () => {
               </div>
             </div>
 
-            {/* Login Button */}
             <div>
               <button
                 type="submit"

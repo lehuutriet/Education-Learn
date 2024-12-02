@@ -1,9 +1,24 @@
 import React, { useEffect, useState } from "react";
-import { Search, Edit2, Trash2, UserPlus } from "lucide-react";
+import {
+  Search,
+  Edit2,
+  Trash2,
+  UserPlus,
+  Users,
+  UserCheck,
+  AlertCircle,
+  Home,
+  X,
+  LogOut,
+  User,
+  Mail,
+  Phone,
+} from "lucide-react";
 import { ExecutionMethod } from "appwrite";
 import { useAuth } from "./contexts/auth/authProvider";
-import { notifications } from "@mantine/notifications";
 
+import _ from "lodash";
+import { useNavigate } from "react-router-dom";
 interface User {
   id: string;
   name: string;
@@ -29,12 +44,13 @@ const AdminPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
-  const { functions } = useAuth();
-  const [debugInfo, setDebugInfo] = useState<string>("");
+  const { functions, account } = useAuth();
+  const [, setDebugInfo] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const navigate = useNavigate();
   const [formData, setFormData] = useState<UserFormData>({
     name: "",
     email: "",
@@ -44,10 +60,11 @@ const AdminPage = () => {
   });
   const functionId = "6746ea5c6eaf6e2b78ad";
   const availableRoles = [
-    "Giáo viên",
-    "Học sinh",
-    "Người hướng dẫn",
-    "Phụ huynh",
+    "Admin",
+    "Teacher",
+    "Student",
+    "Instructor",
+    "Parent",
   ];
 
   const resetForm = () => {
@@ -60,7 +77,14 @@ const AdminPage = () => {
     });
     setError(null);
   };
-
+  const handleLogout = async () => {
+    try {
+      await account.deleteSession("current");
+      navigate("/");
+    } catch (error) {
+      console.error("Error during logout:", error);
+    }
+  };
   const closeUserModal = () => {
     setIsModalOpen(false);
     setIsEditMode(false);
@@ -75,11 +99,10 @@ const AdminPage = () => {
       name: user.name,
       email: user.email,
       phone: user.phone || "",
-      role: user.labels[0] || "",
+      role: user.labels?.[0] || "", // Get the first label as the role
     });
     setIsModalOpen(true);
   };
-
   const formatPhoneNumber = (phone: string) => {
     // Remove non-numeric characters
     const cleaned = phone.replace(/\D/g, "");
@@ -152,62 +175,51 @@ const AdminPage = () => {
     );
   };
 
-  const addUser = async (userData: any) => {
+  const addUser = async (userData: {
+    name: string;
+    email: string;
+    phone: string;
+    password?: string;
+  }) => {
+    if (isEmailOrPhoneExist(userData.email, userData.phone)) {
+      setError("Email hoặc số điện thoại đã tồn tại.");
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
+    setDebugInfo("");
+    closeUserModal();
 
     try {
-      if (!userData.password) {
-        throw new Error("Password is required for new users");
-      }
-
-      // Log để debug
-      console.log("Form data before sending:", userData);
-
-      const dataToSend = {
-        name: userData.name,
-        email: userData.email,
-        password: userData.password,
-        phone: formatPhoneNumber(userData.phone),
-        role: userData.role,
-        labels: [userData.role], // Đảm bảo role được thêm vào labels
-      };
-
-      // Log data gửi đi
-      console.log("Data sending to server:", dataToSend);
-
-      const response = await functions.createExecution(
+      await functions.createExecution(
         functionId,
-        JSON.stringify(dataToSend),
+        JSON.stringify(userData),
         false,
         "/add-users",
         ExecutionMethod.POST
       );
-
-      // Log response
-      console.log("Server response:", response);
-
-      const result = JSON.parse(response?.responseBody || "{}");
-
-      if (result.status === "success") {
-        notifications.show({
-          title: "Thành công",
-          message: `Đã thêm người dùng ${userData.name} với vai trò ${userData.role}`,
-          color: "green",
-        });
-        await fetchUsers();
-        closeUserModal();
-      } else {
-        throw new Error(result?.message || "Không thể thêm người dùng");
-      }
-    } catch (error: any) {
+      await fetchUsers();
+      closeUserModal();
+    } catch (error: unknown) {
       console.error("Error adding user:", error);
-      setError(error.message || "Không thể thêm người dùng. Vui lòng thử lại.");
+
+      if (error instanceof Error) {
+        setError(`Failed to add user: ${error.message}`);
+        setDebugInfo(
+          (prevInfo) => prevInfo + `\nAdd user error: ${error.message}`
+        );
+      } else {
+        setError("Failed to add user: An unknown error occurred");
+        setDebugInfo(
+          (prevInfo) => prevInfo + "\nAdd user error: Unknown error"
+        );
+      }
     } finally {
       setIsLoading(false);
     }
   };
-
+  // Update updateUser function with logging
   const updateUser = async (userData: any) => {
     if (
       selectedUser &&
@@ -220,7 +232,7 @@ const AdminPage = () => {
     setIsLoading(true);
     setError(null);
     setDebugInfo("");
-
+    closeUserModal();
     try {
       if (!selectedUser || !selectedUser.id) {
         throw new Error(
@@ -228,13 +240,9 @@ const AdminPage = () => {
         );
       }
 
-      const updateData: any = {
-        userId: selectedUser.id,
-        // Always include role/labels in update data
-        labels: [userData.role || userData.labels[0]],
-      };
+      const updateData: any = { userId: selectedUser.id };
 
-      // Add other changed fields
+      // Only include fields that have changed
       if (userData.email && selectedUser.email !== userData.email) {
         updateData.email = userData.email;
       }
@@ -247,6 +255,15 @@ const AdminPage = () => {
       if (userData.phone && selectedUser.phone !== userData.phone) {
         updateData.phone = userData.phone;
       }
+      if (userData.password && userData.password.trim() !== "") {
+        updateData.password = userData.password;
+      }
+      if (
+        userData.labels &&
+        !arraysEqual(selectedUser.labels, userData.labels)
+      ) {
+        updateData.labels = userData.labels;
+      }
 
       const response = await functions.createExecution(
         functionId,
@@ -257,33 +274,33 @@ const AdminPage = () => {
         { "Content-Type": "application/json" }
       );
 
-      const result = JSON.parse(response?.responseBody || "{}");
-
-      if (result.status === "success") {
-        await fetchUsers(); // Refresh user list immediately
-        notifications.show({
-          title: "Thành công",
-          message: "Thông tin người dùng đã được cập nhật",
-          color: "green",
-        });
-        closeUserModal();
+      if (response && response.responseBody) {
+        const parsedBody = JSON.parse(response.responseBody);
+        if (parsedBody.status === "success") {
+          await fetchUsers();
+          closeUserModal();
+        } else {
+          throw new Error(
+            parsedBody.message || "Không thể cập nhật người dùng"
+          );
+        }
       } else {
-        throw new Error(result.message || "Không thể cập nhật người dùng");
+        throw new Error("Không nhận được dữ liệu nào trong nội dung phản hồi");
       }
     } catch (error: any) {
       console.error("Error updating user:", error);
-      notifications.show({
-        title: "Lỗi",
-        message:
-          error.message ||
-          "Không thể cập nhật thông tin người dùng. Vui lòng thử lại.",
-        color: "red",
-      });
+      setError(`Failed to update user: ${error.message}`);
+      setDebugInfo((prevInfo) => prevInfo + `\nUpdate error: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
   };
-
+  const arraysEqual = (a: string[], b: string[]) => {
+    if (a === b) return true;
+    if (!a || !b) return false;
+    if (a.length !== b.length) return false;
+    return a.every((val, index) => val === b[index]);
+  };
   const deleteUser = async (userId: string) => {
     if (!window.confirm("Bạn có chắc chắn muốn xóa người dùng này?")) {
       return;
@@ -305,11 +322,6 @@ const AdminPage = () => {
         const result = JSON.parse(response.responseBody);
         if (result.status === "success") {
           await fetchUsers();
-          notifications.show({
-            title: "Thành công",
-            message: "Người dùng đã được xóa thành công",
-            color: "green",
-          });
         } else {
           throw new Error(result.message || "Không thể xóa người dùng");
         }
@@ -317,16 +329,14 @@ const AdminPage = () => {
     } catch (error: any) {
       console.error("Error deleting user:", error);
       setError(error.message || "Không thể xóa người dùng. Vui lòng thử lại.");
-      notifications.show({
-        title: "Lỗi",
-        message: "Không thể xóa người dùng. Vui lòng thử lại.",
-        color: "red",
-      });
     } finally {
       setIsLoading(false);
     }
   };
-
+  const getRoleStats = () => {
+    return _.countBy(users, (user) => user.labels[0]); // Lấy role đầu tiên của mỗi user
+  };
+  const roleStats = getRoleStats();
   const fetchUsers = async () => {
     setIsLoading(true);
     setError(null);
@@ -351,11 +361,6 @@ const AdminPage = () => {
       }
     } catch (error: any) {
       console.error("Error fetching users:", error);
-      notifications.show({
-        title: "Lỗi",
-        message: "Không thể tải danh sách người dùng",
-        color: "red",
-      });
     } finally {
       setIsLoading(false);
     }
@@ -386,247 +391,425 @@ const AdminPage = () => {
     const matchesRole = !roleFilter || user.labels.includes(roleFilter);
     return matchesSearch && matchesRole;
   });
-  useEffect(() => {
-    console.log("Current form data:", formData);
-  }, [formData]);
+
   return (
-    <div className="p-4 bg-white rounded-lg shadow">
-      <div className="mb-6">
-        <div className="flex justify-between items-center mb-4">
-          <h1 className="text-xl font-bold">Danh sách thành viên</h1>
-          <button
-            onClick={() => {
-              setIsModalOpen(true);
-              setIsEditMode(false);
-              resetForm();
-            }}
-            className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
-          >
-            <UserPlus className="size-4" />
-            Thêm người dùng
-          </button>
-        </div>
-
-        <div className="flex gap-4 items-center mb-4">
-          <div className="flex-1 relative">
-            <input
-              type="text"
-              placeholder="Tìm kiếm theo tên, email hoặc số điện thoại"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border rounded-md"
-            />
-            <Search className="absolute left-3 top-2.5 text-gray-400 size-5" />
-          </div>
-
-          <select
-            value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
-            className="border rounded-md p-2"
-          >
-            <option value="">Tất cả vai trò</option>
-            {availableRoles.map((role) => (
-              <option key={role} value={role}>
-                {role}
-              </option>
-            ))}
-          </select>
-
-          <button
-            onClick={() => {
-              setSearchQuery("");
-              setRoleFilter("");
-            }}
-            className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600"
-          >
-            Làm mới
-          </button>
-        </div>
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="absolute top-6 right-6 flex gap-4">
+        <button
+          onClick={() => navigate("/homepage")}
+          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          <Home className="size-4" />
+          Trang chủ
+        </button>
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+        >
+          <LogOut className="size-4" />
+          Đăng xuất
+        </button>
+      </div>
+      {/* Dashboard Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900">Quản lý tài khoản</h1>
+        <p className="text-gray-600 mt-2">
+          Quản lý người dùng và phân quyền hệ thống
+        </p>
       </div>
 
-      {error && (
-        <div className="text-red-500 mb-4 p-4 bg-red-50 rounded-md">
-          {error}
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {/* Total Users Card */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-sm font-medium text-gray-600">
+              Tổng người dùng
+            </h3>
+            <Users className="size-4 text-blue-600" />
+          </div>
+          <div className="text-2xl font-bold text-gray-900">{users.length}</div>
+          <p className="text-xs text-gray-600 mt-1">Đang hoạt động</p>
         </div>
-      )}
 
-      <div className="overflow-x-auto">
-        {isLoading ? (
-          <div className="text-center py-4">Đang tải...</div>
-        ) : (
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="bg-gray-50">
-                <th className="border p-2 text-left">Họ và Tên</th>
-                <th className="border p-2 text-left">Email</th>
-                <th className="border p-2 text-left">Số điện thoại</th>
-                <th className="border p-2 text-left">Ngày đăng ký</th>
-                <th className="border p-2 text-left">Vai trò</th>
-                <th className="border p-2 text-center">Chức năng</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-gray-50">
-                  <td className="border p-2">{user.name}</td>
-                  <td className="border p-2">{user.email}</td>
-                  <td className="border p-2">{user.phone}</td>
-                  <td className="border p-2">
-                    {formatDate(user.registration)}
-                  </td>
-                  <td className="border p-2">
-                    {user.labels.join(", ") || "Chưa phân quyền"}
-                  </td>
-                  <td className="border p-2">
-                    <div className="flex justify-center gap-2">
-                      <button
-                        onClick={() => handleEdit(user)}
-                        className="p-1 text-orange-500 hover:text-orange-600"
-                      >
-                        <Edit2 className="size-4" />
-                      </button>
-                      <button
-                        onClick={() => deleteUser(user.id)}
-                        className="p-1 text-red-500 hover:text-red-600"
-                      >
-                        <Trash2 className="size-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
+        {/* Role Stats Cards */}
+        {availableRoles.slice(0, 3).map((role) => (
+          <div
+            key={role}
+            className="bg-white p-6 rounded-xl shadow-sm border border-gray-100"
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-sm font-medium text-gray-600">{role}s</h3>
+              <UserCheck className="size-4 text-green-600" />
+            </div>
+            <div className="text-2xl font-bold text-gray-900">
+              {roleStats[role] || 0}
+            </div>
+            <p className="text-xs text-gray-600 mt-1">Người dùng</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Main Content Section */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+        {/* Header Actions */}
+        <div className="p-6 border-b border-gray-100">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="flex-1">
+              <h2 className="text-xl font-semibold text-gray-900">
+                Danh sách thành viên
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Quản lý và phân quyền người dùng trong hệ thống
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setIsModalOpen(true);
+                setIsEditMode(false);
+                resetForm();
+              }}
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <UserPlus className="size-4" />
+              Thêm người dùng
+            </button>
+          </div>
+
+          {/* Search and Filters */}
+          <div className="mt-6 flex flex-col md:flex-row gap-4">
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                placeholder="Tìm kiếm theo tên, email hoặc số điện thoại..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              <Search className="absolute left-3 top-2.5 text-gray-400 size-5" />
+            </div>
+
+            <select
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+              className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">Tất cả vai trò</option>
+              {availableRoles.map((role) => (
+                <option key={role} value={role}>
+                  {role}
+                </option>
               ))}
-            </tbody>
-          </table>
+            </select>
+
+            <button
+              onClick={() => {
+                setSearchQuery("");
+                setRoleFilter("");
+              }}
+              className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              Làm mới
+            </button>
+          </div>
+        </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+            <AlertCircle className="size-5 text-red-600 mt-0.5" />
+            <div>
+              <h4 className="text-sm font-medium text-red-800">Lỗi</h4>
+              <p className="text-sm text-red-600">{error}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Table Section */}
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="flex flex-col items-center">
+              <div className="size-12 border-4 border-gray-200 border-t-blue-600 rounded-full animate-spin"></div>
+              <div className="mt-4 text-gray-600 text-sm font-medium text-center">
+                Đang tải dữ liệu...
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Table Section */
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Họ và Tên
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Email
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Số điện thoại
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Ngày đăng ký
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Vai trò
+                  </th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Chức năng
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {filteredUsers.map((user) => (
+                  <tr
+                    key={user.id}
+                    className="hover:bg-gray-50 transition-colors"
+                  >
+                    <td className="px-6 py-4">
+                      <div className="font-medium text-gray-900">
+                        {user.name}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-gray-600">{user.email}</td>
+                    <td className="px-6 py-4 text-gray-600">{user.phone}</td>
+                    <td className="px-6 py-4 text-gray-600">
+                      {formatDate(user.registration)}
+                    </td>
+                    <td className="px-6 py-4">
+                      {user.labels.map((label) => (
+                        <span
+                          key={label}
+                          className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mr-2"
+                        >
+                          {label}
+                        </span>
+                      ))}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex justify-center gap-3">
+                        <button
+                          onClick={() => handleEdit(user)}
+                          className="text-blue-600 hover:text-blue-800 transition-colors"
+                        >
+                          <Edit2 className="size-4" />
+                        </button>
+                        <button
+                          onClick={() => deleteUser(user.id)}
+                          className="text-red-600 hover:text-red-800 transition-colors"
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
+      {/* Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-xl w-96">
-            <h2 className="text-xl font-bold mb-4">
-              {isEditMode
-                ? "Cập nhật thông tin người dùng"
-                : "Thêm người dùng mới"}
-            </h2>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <div className="bg-blue-600 px-6 py-4 flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-white">
+                {isEditMode
+                  ? "Cập nhật thông tin người dùng"
+                  : "Thêm người dùng mới"}
+              </h2>
+              <button
+                onClick={closeUserModal}
+                className="text-white/80 hover:text-white transition-colors"
+              >
+                <X className="size-6" />
+              </button>
+            </div>
 
             {error && (
-              <div className="mb-4 p-3 bg-red-50 text-red-500 rounded-md">
-                {error}
+              <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3 animate-shake">
+                <AlertCircle className="size-5 text-red-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h4 className="text-sm font-medium text-red-800">
+                    Có lỗi xảy ra
+                  </h4>
+                  <p className="text-sm text-red-600 mt-1">{error}</p>
+                </div>
               </div>
             )}
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Họ và tên
+            <form onSubmit={handleSubmit} className="p-6 space-y-6">
+              {/* Name Field */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Họ và tên <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                  className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Nhập họ và tên"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={formData.email}
-                  onChange={(e) =>
-                    setFormData({ ...formData, email: e.target.value })
-                  }
-                  className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Nhập email"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Số điện thoại
-                </label>
-                <input
-                  type="tel"
-                  required
-                  value={formData.phone}
-                  onChange={(e) =>
-                    setFormData({ ...formData, phone: e.target.value })
-                  }
-                  className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Nhập số điện thoại"
-                />
-              </div>
-
-              {!isEditMode && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Mật khẩu
-                  </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <User className="size-5 text-gray-400" />
+                  </div>
                   <input
-                    type="password"
+                    type="text"
                     required
-                    value={formData.password}
+                    value={formData.name}
                     onChange={(e) =>
-                      setFormData({ ...formData, password: e.target.value })
+                      setFormData({ ...formData, name: e.target.value })
                     }
-                    className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Nhập mật khẩu"
-                    minLength={8}
+                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    placeholder="Nhập họ và tên"
                   />
                 </div>
-              )}
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Email <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Mail className="size-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="email"
+                    required
+                    value={formData.email}
+                    onChange={(e) =>
+                      setFormData({ ...formData, email: e.target.value })
+                    }
+                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    placeholder="Nhập địa chỉ email"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Số điện thoại <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Phone className="size-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="tel"
+                    required
+                    value={formData.phone}
+                    onChange={(e) =>
+                      setFormData({ ...formData, phone: e.target.value })
+                    }
+                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    placeholder="Nhập số điện thoại"
+                  />
+                </div>
+              </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Vai trò <span className="text-red-500">*</span>
+                  {isEditMode
+                    ? "Mật khẩu mới (để trống nếu không đổi)"
+                    : "Mật khẩu"}
                 </label>
-                <select
-                  value={formData.role}
-                  onChange={(e) => {
-                    const newRole = e.target.value;
-                    console.log("Selected role:", newRole); // Debug
-                    setFormData((prev) => ({
-                      ...prev,
-                      role: newRole,
-                    }));
-                  }}
-                  className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  required
-                >
-                  <option value="">-- Chọn vai trò --</option>
-                  {availableRoles.map((role) => (
-                    <option key={role} value={role}>
-                      {role}
-                    </option>
-                  ))}
-                </select>
+                <input
+                  type="password"
+                  required={!isEditMode}
+                  value={formData.password}
+                  onChange={(e) =>
+                    setFormData({ ...formData, password: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder={
+                    isEditMode ? "Nhập mật khẩu mới" : "Nhập mật khẩu"
+                  }
+                  minLength={8}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {isEditMode
+                    ? "Chỉ điền nếu muốn thay đổi mật khẩu"
+                    : "Mật khẩu phải có ít nhất 8 ký tự"}
+                </p>
               </div>
 
-              <div className="flex justify-end gap-2 pt-4">
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Vai trò <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <UserCheck className="size-5 text-gray-400" />
+                  </div>
+                  <select
+                    required
+                    value={formData.role}
+                    onChange={(e) =>
+                      setFormData({ ...formData, role: e.target.value })
+                    }
+                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors appearance-none bg-white"
+                  >
+                    <option value="">-- Chọn vai trò --</option>
+                    {availableRoles.map((role) => (
+                      <option key={role} value={role}>
+                        {role}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                    <svg
+                      className="size-5 text-gray-400"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-6 border-t">
                 <button
                   type="button"
                   onClick={closeUserModal}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800 rounded-md border border-gray-300 hover:bg-gray-50"
+                  className="px-4 py-2.5 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors font-medium"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center gap-2"
                 >
-                  {isLoading
-                    ? "Đang xử lý..."
-                    : isEditMode
-                    ? "Cập nhật"
-                    : "Thêm"}
+                  {isLoading ? (
+                    <>
+                      <svg
+                        className="animate-spin size-4 text-white"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
+                      </svg>
+                      <span>Đang xử lý...</span>
+                    </>
+                  ) : (
+                    <>{isEditMode ? "Cập nhật" : "Thêm"}</>
+                  )}
                 </button>
               </div>
             </form>
