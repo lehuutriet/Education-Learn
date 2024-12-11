@@ -1,3 +1,4 @@
+// SearchInput.tsx
 import { useState } from "react";
 import { Search, ArrowRight, Minus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -6,11 +7,28 @@ const SearchInput = () => {
   const [searchValue, setSearchValue] = useState("");
   const navigate = useNavigate();
 
+  const addToSearchHistory = (query: string) => {
+    const history = localStorage.getItem("searchHistory");
+    let searches = history ? JSON.parse(history) : [];
+
+    // Remove duplicate if exists
+    searches = searches.filter((item: string) => item !== query);
+
+    // Add new search to the beginning
+    searches.unshift(query);
+
+    // Keep only the last 10 searches
+    searches = searches.slice(0, 10);
+
+    localStorage.setItem("searchHistory", JSON.stringify(searches));
+  };
+
   const handleSearch = (e?: React.FormEvent) => {
     if (e) {
       e.preventDefault();
     }
     if (searchValue.trim()) {
+      addToSearchHistory(searchValue.trim());
       navigate(`/search-results?q=${encodeURIComponent(searchValue)}`);
     }
   };

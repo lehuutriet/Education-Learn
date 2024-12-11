@@ -1,6 +1,6 @@
 {
     "projectId": "674818e10034704a2276",
-    "projectName": "User",
+    "projectName": "Education",
     "functions": [
         {
             "$id": "6746ea5c6eaf6e2b78ad",
@@ -19,6 +19,24 @@
                 ".npm"
             ],
             "path": "functions/User"
+        },
+        {
+            "$id": "6757b08826369e75eaaf",
+            "name": "exercise",
+            "runtime": "node-18.0",
+            "execute": [],
+            "events": [],
+            "schedule": "",
+            "timeout": 15,
+            "enabled": true,
+            "logging": true,
+            "entrypoint": "src/main.js",
+            "commands": "npm install",
+            "ignore": [
+                "node_modules",
+                ".npm"
+            ],
+            "path": "functions/exercise"
         }
     ]
 }

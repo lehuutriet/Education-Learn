@@ -295,6 +295,9 @@ const AdminPage = () => {
       setIsLoading(false);
     }
   };
+  const navigateToHomePage = () => {
+    navigate("/homepage");
+  };
   const arraysEqual = (a: string[], b: string[]) => {
     if (a === b) return true;
     if (!a || !b) return false;
@@ -396,7 +399,7 @@ const AdminPage = () => {
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="absolute top-6 right-6 flex gap-4">
         <button
-          onClick={() => navigate("/homepage")}
+          onClick={navigateToHomePage}
           className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
         >
           <Home className="size-4" />

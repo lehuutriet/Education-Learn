@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useEffect } from "react";
-import { Client, Databases, Account, Functions } from "appwrite";
+import { Client, Databases, Account, Functions, Storage } from "appwrite";
 import { showNotification } from "@mantine/notifications";
+
 interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -10,6 +11,7 @@ interface AuthContextType {
   checkAuthStatus: () => Promise<boolean>;
   databases: Databases;
   functions: Functions;
+  storage: Storage; // Thêm storage vào interface
   client: Client;
   account: Account;
 }
@@ -22,10 +24,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
+
   const client = new Client()
     .setEndpoint("https://store.hjm.bid/v1")
     .setProject("674818e10034704a2276");
 
+  const storage = new Storage(client); // Khởi tạo storage
   const databases = new Databases(client);
   const account = new Account(client);
   const functions = new Functions(client);
@@ -33,8 +37,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const checkAuthStatus = async (): Promise<boolean> => {
     if (!navigator.onLine) {
       console.log("You are offline. Skipping API call.");
-      setIsAuthenticated(true); // Nếu bạn muốn giữ người dùng đăng nhập khi offline
-      setIsLoading(false); // Không loading khi offline
+      setIsAuthenticated(true);
+      setIsLoading(false);
       return true;
     }
 
@@ -60,6 +64,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     setIsLoading(false);
     return false;
   };
+
   useEffect(() => {
     const handleNetworkChange = () => {
       if (navigator.onLine) {
@@ -68,7 +73,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           message: "You are now connected to the internet.",
           color: "green",
         });
-        checkAuthStatus(); // Kiểm tra lại trạng thái auth khi người dùng kết nối mạng trở lại
+        checkAuthStatus();
       } else {
         showNotification({
           title: "Offline",
@@ -102,6 +107,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setUserRole(userRole);
     }
   };
+
   const logout = async () => {
     await account.deleteSession("current");
     setIsAuthenticated(false);
@@ -119,6 +125,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         checkAuthStatus,
         databases,
         functions,
+        storage, // Thêm storage vào Provider
         client,
         account,
       }}

@@ -1,3 +1,4 @@
+// src/routers.tsx
 import { createBrowserRouter, Outlet } from "react-router-dom";
 import { Suspense } from "react";
 import Login from "../contexts/auth/Login";
@@ -6,6 +7,10 @@ import ProtectedRoute from "./protectedRoute";
 import AdminPage from "../AdminPage";
 import PageNotFound from "./pageNotFound";
 import SearchResultsPage from "../Search/SearchResultsPage";
+import FileViewer from "../Education/exercise";
+import ClassroomPortal from "../Classroom/ClassroomPortal";
+import ClassroomPage from "../Classroom/ClassroomPage";
+import ClassroomManagement from "../Classroom/ClassroomManagement";
 const App = () => {
   return (
     <Suspense
@@ -25,19 +30,19 @@ export const Router = createBrowserRouter([
     path: "/",
     element: <App />,
     children: [
-      // Public routes (không cần auth)
+      // Public routes
       {
         path: "",
         element: <Login />,
       },
       {
-        path: "search-results",
+        path: "/search-results",
         element: <SearchResultsPage />,
       },
 
-      // Protected routes (cần auth)
+      // Protected routes
       {
-        path: "admin",
+        path: "/admin",
         element: (
           <ProtectedRoute requiredRole="Admin">
             <AdminPage />
@@ -45,10 +50,39 @@ export const Router = createBrowserRouter([
         ),
       },
       {
-        path: "homepage",
+        path: "/homepage",
+        element: <HomePage />,
+      },
+      // Add FileViewer route
+      {
+        path: "/education",
         element: (
           <ProtectedRoute>
-            <HomePage />
+            <FileViewer />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "/classroomManagement",
+        element: (
+          <ProtectedRoute>
+            <ClassroomManagement />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "/classroom-portal",
+        element: (
+          <ProtectedRoute>
+            <ClassroomPortal />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "/classroom/:classroomId",
+        element: (
+          <ProtectedRoute>
+            <ClassroomPage />
           </ProtectedRoute>
         ),
       },
