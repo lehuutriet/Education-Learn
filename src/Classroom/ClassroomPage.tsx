@@ -3,11 +3,13 @@ import { useParams } from "react-router-dom";
 import { useAuth } from "../contexts/auth/authProvider";
 import Navigation from "../Navigation/Navigation";
 import ClassroomChat from "./ClassroomChat";
+import { useDataCache } from "../contexts/auth/DataCacheProvider";
+import TimeSchedule from "./TimeSchedule";
+import { ScheduleItem } from "../type/type";
 import {
   BookOpen,
   Calendar,
   FileText,
-  Clock,
   Download,
   Plus,
   Loader,
@@ -15,9 +17,9 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "../ui/card";
-
-interface Classroom {
-  id: string;
+import { Models } from "appwrite";
+import TodaySchedule from "./TodaySchedule";
+interface Classroom extends Models.Document {
   className: string;
   academicYear: string;
   teacher: string;
@@ -27,44 +29,34 @@ interface Classroom {
   createdAt: string;
 }
 
-interface Assignment {
-  id: string;
+interface Assignment extends Models.Document {
   title: string;
   description: string;
   dueDate: string;
   attachments: string[];
   status: "draft" | "published" | "closed";
+  classroomId: string;
 }
 
-interface Material {
-  id: string;
+interface Material extends Models.Document {
   title: string;
   description: string;
   type: "document" | "video" | "image" | "link";
   fileId: string;
   uploadedAt: string;
-}
-
-interface ScheduleItem {
-  id: string;
-  dayOfWeek: number;
-  startTime: string;
-  endTime: string;
-  subject: string;
-  room: string;
+  classroomId: string;
 }
 
 type TabType = "overview" | "assignments" | "materials" | "schedule" | "chat";
 
 const ClassroomPage: React.FC = () => {
-  const { classroomId } = useParams<{ classroomId: string }>();
   const { databases, account } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [classroom, setClassroom] = useState<Classroom | null>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
-
+  const { classroomId = "" } = useParams<{ classroomId: string }>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [, setCurrentUserId] = useState("");
@@ -73,12 +65,15 @@ const ClassroomPage: React.FC = () => {
   const ASSIGNMENTS_COLLECTION_ID = "67566466003b28582c75";
   const MATERIALS_COLLECTION_ID = "6756696f002b58afb01c";
   const SCHEDULE_COLLECTION_ID = "675668e500195f7e0e72";
+  const { getCachedData, setCachedData, isDataCached } = useDataCache();
+  const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
   useEffect(() => {
     if (classroomId) {
       fetchClassroomData();
     }
   }, [classroomId]);
+
   useEffect(() => {
     const getCurrentUser = async () => {
       try {
@@ -93,40 +88,78 @@ const ClassroomPage: React.FC = () => {
   const fetchClassroomData = async () => {
     if (!classroomId) return;
 
+    // Check cache first
+    const CLASSROOM_CACHE_KEY = `classroom-${classroomId}`;
+    const ASSIGNMENTS_CACHE_KEY = `assignments-${classroomId}`;
+    const MATERIALS_CACHE_KEY = `materials-${classroomId}`;
+    const SCHEDULE_CACHE_KEY = `schedule-${classroomId}`;
+
     try {
       setLoading(true);
 
       // Fetch classroom details
-      const classroomData = await databases.getDocument(
-        DATABASE_ID,
-        CLASSROOM_COLLECTION_ID,
-        classroomId
-      );
-      setClassroom(classroomData as unknown as Classroom);
+      if (isDataCached(CLASSROOM_CACHE_KEY)) {
+        setClassroom(getCachedData(CLASSROOM_CACHE_KEY));
+      } else {
+        const classroomData = await databases.getDocument(
+          DATABASE_ID,
+          CLASSROOM_COLLECTION_ID,
+          classroomId
+        );
+        setCachedData(CLASSROOM_CACHE_KEY, classroomData, CACHE_DURATION);
+        setClassroom(classroomData as Classroom);
+      }
 
       // Fetch assignments
-      const assignmentsResponse = await databases.listDocuments(
-        DATABASE_ID,
-        ASSIGNMENTS_COLLECTION_ID
-      );
-      setAssignments(assignmentsResponse.documents as unknown as Assignment[]);
+      if (isDataCached(ASSIGNMENTS_CACHE_KEY)) {
+        setAssignments(getCachedData(ASSIGNMENTS_CACHE_KEY));
+      } else {
+        const assignmentsResponse = await databases.listDocuments(
+          DATABASE_ID,
+          ASSIGNMENTS_COLLECTION_ID
+        );
+        setCachedData(
+          ASSIGNMENTS_CACHE_KEY,
+          assignmentsResponse.documents,
+          CACHE_DURATION
+        );
+        setAssignments(assignmentsResponse.documents as Assignment[]);
+      }
 
       // Fetch materials
-      const materialsResponse = await databases.listDocuments(
-        DATABASE_ID,
-        MATERIALS_COLLECTION_ID
-      );
-      setMaterials(materialsResponse.documents as unknown as Material[]);
+      if (isDataCached(MATERIALS_CACHE_KEY)) {
+        setMaterials(getCachedData(MATERIALS_CACHE_KEY));
+      } else {
+        const materialsResponse = await databases.listDocuments(
+          DATABASE_ID,
+          MATERIALS_COLLECTION_ID
+        );
+        setCachedData(
+          MATERIALS_CACHE_KEY,
+          materialsResponse.documents,
+          CACHE_DURATION
+        );
+        setMaterials(materialsResponse.documents as Material[]);
+      }
 
       // Fetch schedule
-      const scheduleResponse = await databases.listDocuments(
-        DATABASE_ID,
-        SCHEDULE_COLLECTION_ID
-      );
-      setSchedule(scheduleResponse.documents as unknown as ScheduleItem[]);
+      if (isDataCached(SCHEDULE_CACHE_KEY)) {
+        setSchedule(getCachedData(SCHEDULE_CACHE_KEY));
+      } else {
+        const scheduleResponse = await databases.listDocuments(
+          DATABASE_ID,
+          SCHEDULE_COLLECTION_ID
+        );
+        setCachedData(
+          SCHEDULE_CACHE_KEY,
+          scheduleResponse.documents,
+          CACHE_DURATION
+        );
+        setSchedule(scheduleResponse.documents as ScheduleItem[]);
+      }
     } catch (error) {
       console.error("Error fetching classroom data:", error);
-      setError("Không thể tải thông tin lớp học");
+      setError("Failed to load classroom data");
     } finally {
       setLoading(false);
     }
@@ -203,14 +236,10 @@ const ClassroomPage: React.FC = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {schedule.slice(0, 3).map((item) => (
-                  <div key={item.id} className="mb-4">
-                    <h3 className="font-medium">{item.subject}</h3>
-                    <p className="text-sm text-gray-500">
-                      {item.startTime} - {item.endTime}
-                    </p>
-                  </div>
-                ))}
+                <TodaySchedule
+                  schedule={schedule as ScheduleItem[]}
+                  classroomId={classroomId}
+                />
               </CardContent>
             </Card>
           </div>
@@ -327,49 +356,14 @@ const ClassroomPage: React.FC = () => {
         );
 
       case "schedule":
-        return (
-          <div className="grid grid-cols-7 gap-4">
-            {[
-              "Thứ 2",
-              "Thứ 3",
-              "Thứ 4",
-              "Thứ 5",
-              "Thứ 6",
-              "Thứ 7",
-              "Chủ nhật",
-            ].map((day, index) => (
-              <div key={index}>
-                <h3 className="text-center font-medium text-gray-900 mb-4">
-                  {day}
-                </h3>
-                <div className="space-y-4">
-                  {schedule
-                    .filter((item) => item.dayOfWeek === index)
-                    .sort((a, b) => a.startTime.localeCompare(b.startTime))
-                    .map((item) => (
-                      <Card
-                        key={item.id}
-                        className="border-l-4 border-l-blue-500"
-                      >
-                        <CardContent className="py-4">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Clock className="w-4 h-4 text-gray-400" />
-                            <span className="text-sm text-gray-600">
-                              {item.startTime} - {item.endTime}
-                            </span>
-                          </div>
-                          <h4 className="font-medium">{item.subject}</h4>
-                          <p className="text-sm text-gray-500">
-                            Phòng: {item.room}
-                          </p>
-                        </CardContent>
-                      </Card>
-                    ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        );
+        if (!classroomId) {
+          return (
+            <div className="p-4 text-center text-gray-600">
+              Không tìm thấy thông tin lớp học
+            </div>
+          );
+        }
+        return <TimeSchedule classroomId={classroomId} />;
 
       // Trong phần render chat tab của ClassroomPage.tsx
       case "chat":

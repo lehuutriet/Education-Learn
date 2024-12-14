@@ -3,6 +3,7 @@ import { Send, MoreVertical, Trash2, RotateCcw, X } from "lucide-react";
 import { Client, Models, RealtimeResponseEvent, Query } from "appwrite";
 import { useAuth } from "../contexts/auth/authProvider";
 import { debounce } from "lodash";
+import { useDataCache } from "../contexts/auth/DataCacheProvider";
 interface Message extends Models.Document {
   $id: string;
   $createdAt: string;
@@ -32,7 +33,10 @@ const ClassroomChat: React.FC<ChatProps> = ({ classroomId }) => {
   const { account, databases } = useAuth();
   const [currentUser, setCurrentUser] =
     useState<Models.User<Models.Preferences> | null>(null);
+  const { getCachedData, setCachedData, isDataCached } = useDataCache();
 
+  const CACHE_KEY = `chat-messages-${classroomId}`;
+  const CACHE_DURATION = 2 * 60 * 1000; // 2 minutes - shorter duration for chat
   const DATABASE_ID = "674e5e7a0008e19d0ef0";
   const MESSAGES_COLLECTION_ID = "67569a43002f288aa7d4";
 
@@ -71,16 +75,29 @@ const ClassroomChat: React.FC<ChatProps> = ({ classroomId }) => {
   const fetchMessages = async () => {
     try {
       setIsLoading(true);
+
+      // Check cache first
+      if (isDataCached(CACHE_KEY)) {
+        const cachedMessages = getCachedData(CACHE_KEY);
+        setMessages(cachedMessages);
+        return cachedMessages;
+      }
+
       const response = await databases.listDocuments(
         DATABASE_ID,
         MESSAGES_COLLECTION_ID,
         [
           Query.equal("classroomId", [classroomId]),
-          Query.orderAsc("$createdAt"), // Thay đổi từ orderDesc sang orderAsc
+          Query.orderAsc("$createdAt"),
           Query.limit(100),
         ]
       );
-      return response.documents as Message[];
+
+      const fetchedMessages = response.documents as Message[];
+
+      // Cache the messages
+      setCachedData(CACHE_KEY, fetchedMessages, CACHE_DURATION);
+      return fetchedMessages;
     } catch (error) {
       console.error("Error fetching messages:", error);
       setError("Failed to load messages");

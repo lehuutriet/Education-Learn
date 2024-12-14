@@ -33,16 +33,19 @@ export default async function({ req, res, log, error }) {
             const uniqueFileName = `${Date.now()}-${name}`;
             
             // Create full directory path if it includes subdirectories
-            const fullDirPath = path.join(UPLOAD_DIR, path.dirname(relativePath));
+            const fullDirPath = UPLOAD_DIR;
             if (!fs.existsSync(fullDirPath)) {
                 fs.mkdirSync(fullDirPath, { recursive: true });
             }
 
             // Full path for local file storage
-            const localFilePath = path.join(UPLOAD_DIR, relativePath, uniqueFileName);
+            const localFilePath = path.join(UPLOAD_DIR, uniqueFileName);
+            // Trong main.js, thêm xử lý prefix base64
+            const base64Data = fileData.includes('base64,') 
+            ? fileData.split('base64,')[1] 
+            : fileData;
 
-            // Convert base64 to buffer and save locally
-            const buffer = Buffer.from(fileData, 'base64');
+            const buffer = Buffer.from(base64Data, 'base64');
             fs.writeFileSync(localFilePath, buffer);
 
             // Store record in database
@@ -58,7 +61,7 @@ export default async function({ req, res, log, error }) {
                     uploadedAt: new Date().toISOString(),
                     status: 'active',
                     localPath: localFilePath, // Store the local file path
-                    content: buffer.toString('base64') // Store file content in database
+                   
                 }
             );
 
@@ -76,38 +79,7 @@ export default async function({ req, res, log, error }) {
         }
         // Add this to main.js
 
-if (req.method === 'POST' && req.path === '/store-local-file') {
-    try {
-        const { name, type, content, localPath } = JSON.parse(req.body);
-        
-        // Remove data:image/jpeg;base64, prefix if exists
-        const base64Data = content.replace(/^data:([A-Za-z-+/]+);base64,/, '');
-        
-        // Create full path including directories
-        const fullPath = path.join(localPath, name);
-        
-        // Create directory if it doesn't exist
-        const dir = path.dirname(fullPath);
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-        }
-        
-        // Write file to local storage
-        fs.writeFileSync(fullPath, base64Data, 'base64');
-        
-        return res.json({
-            success: true,
-            message: 'File saved locally',
-            path: fullPath
-        });
-    } catch (error) {
-        log(error);
-        return res.json({
-            success: false,
-            message: 'Failed to save file locally'
-        }, 500);
-    }
-}
+
         // Get file
         if (req.method === 'GET' && req.path === '/get-file') {
             const { fileId } = req.query;

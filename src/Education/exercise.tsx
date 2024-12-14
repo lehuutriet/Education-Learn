@@ -19,6 +19,19 @@ import { ExecutionMethod, Models } from "appwrite";
 import Navigation from "../Navigation/Navigation";
 import { ID, Query } from "appwrite";
 
+interface FileIconProps {
+  type: string;
+}
+
+const FileIcon = ({ type }: FileIconProps) => {
+  if (type.startsWith("image"))
+    return <ImageIcon className="w-5 h-5 text-blue-500" />;
+  if (type.startsWith("video"))
+    return <Video className="w-5 h-5 text-red-500" />;
+  if (type === "application/pdf")
+    return <FileText className="w-5 h-5 text-orange-500" />;
+  return <File className="w-5 h-5 text-gray-500" />;
+};
 // Extend InputHTMLAttributes for directory upload
 declare module "react" {
   interface InputHTMLAttributes<T> extends HTMLAttributes<T> {
@@ -34,6 +47,7 @@ interface AppwriteDocument extends Models.Document {
   uploadedBy: string;
   uploadedAt: string;
   status: string;
+  localPath: string;
 }
 
 interface FileItem {
@@ -43,6 +57,7 @@ interface FileItem {
   size?: number;
   isDirectory: boolean;
   path?: string;
+  localPath?: string;
 }
 
 interface StoredFile {
@@ -53,6 +68,7 @@ interface StoredFile {
   uploadedBy: string;
   uploadedAt: string;
   status: string;
+  localPath: string;
 }
 
 const Exercise = () => {
@@ -62,10 +78,14 @@ const Exercise = () => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState<string>("");
+
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [, setSelectedFile] = useState<StoredFile | null>(null);
-
+  const [uploadProgress, setUploadProgress] = useState({
+    current: 0,
+    total: 0,
+    currentFile: "",
+  });
   const { functions, databases, account } = useAuth();
   const functionId = "6757b08826369e75eaaf";
   const DATABASE_ID = "674e5e7a0008e19d0ef0";
@@ -119,7 +139,10 @@ const Exercise = () => {
         await databases.listDocuments<AppwriteDocument>(
           DATABASE_ID,
           FILES_COLLECTION_ID,
-          [Query.orderDesc("$createdAt")]
+          [
+            Query.orderDesc("$createdAt"),
+            Query.limit(10000), // Hoặc số lượng tùy ý, ví dụ 1000
+          ]
         );
 
       const convertedFiles: StoredFile[] = storedFilesResponse.documents.map(
@@ -131,6 +154,7 @@ const Exercise = () => {
           uploadedBy: doc.uploadedBy,
           uploadedAt: doc.uploadedAt,
           status: doc.status,
+          localPath: doc.path,
         })
       );
 
@@ -147,102 +171,102 @@ const Exercise = () => {
     loadFiles();
   }, []);
 
-  // File upload handling
-  const handleFileUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const handleFileUpload = async (event: any) => {
     const files = event.target.files;
-    if (!files || files.length === 0) return;
+    if (!files?.length) return;
 
-    setUploadStatus("Processing files...");
-    let processedCount = 0;
+    setUploadProgress({
+      current: 0,
+      total: files.length,
+      currentFile: "",
+    });
 
     try {
       const user = await account.get();
-      console.log("Current user:", user); // Debug log
+      const duplicates: string[] = [];
 
-      for (const file of Array.from(files)) {
-        console.log("Processing file:", file.name); // Debug log
-        setUploadStatus(
-          `Processing ${processedCount + 1} of ${files.length}: ${file.name}`
+      // First check for duplicates
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const originalPath = file.webkitRelativePath || file.name;
+
+        // Check if file with same path exists
+        const existingFiles = await databases.listDocuments(
+          DATABASE_ID,
+          FILES_COLLECTION_ID,
+          [Query.equal("path", originalPath), Query.equal("status", "active")]
         );
 
-        // Read file as base64
-        const base64Data = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = (e) => {
-            console.log("File read successfully"); // Debug log
-            const result = e.target?.result;
-            if (typeof result === "string") {
-              const base64 = result.split(",")[1];
-              resolve(base64);
-            } else {
-              reject(new Error("Failed to read file"));
-            }
-          };
-          reader.onerror = (e) => reject(e);
-          reader.readAsDataURL(file);
+        if (existingFiles.documents.length > 0) {
+          duplicates.push(originalPath);
+        }
+      }
+
+      // If duplicates found, show error and stop upload
+      if (duplicates.length > 0) {
+        setError(`The following files/folders already exist`);
+        setUploadProgress({ current: 0, total: 0, currentFile: "" });
+        setIsModalOpen(false);
+        return;
+      }
+
+      // If no duplicates, proceed with upload
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        setUploadProgress((prev) => ({
+          ...prev,
+          current: i + 1,
+          currentFile: file.name,
+        }));
+
+        const formData = new FormData();
+        formData.append("file", file);
+        const originalPath = file.webkitRelativePath || file.name;
+        formData.append("originalPath", originalPath);
+
+        const response = await fetch("http://localhost:3001/upload", {
+          method: "POST",
+          body: formData,
         });
 
-        // Prepare upload data
-        const uploadData = {
-          name: file.name,
-          type: file.type,
-          userId: user.$id,
-          fileData: base64Data,
-        };
-
-        console.log("Sending file to cloud function..."); // Debug log
-
-        // Upload to server via cloud function
-        const response = await functions.createExecution(
-          functionId,
-          JSON.stringify(uploadData),
-          false,
-          "/store-file",
-          ExecutionMethod.POST
-        );
-
-        console.log("Cloud function response:", response); // Debug log
-
-        const result = JSON.parse(response.responseBody);
-
-        if (!result.success) {
-          throw new Error(result.message || "Failed to upload file");
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
 
-        console.log("File uploaded successfully, creating database record..."); // Debug log
+        const result = await response.json();
 
-        // Create database record
-        const dbRecord = await databases.createDocument(
+        if (!result.success) {
+          throw new Error(result.message || "Upload failed");
+        }
+
+        await databases.createDocument(
           DATABASE_ID,
           FILES_COLLECTION_ID,
           ID.unique(),
           {
             name: file.name,
-            path: result.file.path,
+            path: originalPath,
             type: file.type,
-            uploadedBy: user.$id,
+            uploadedBy: user.name,
             uploadedAt: new Date().toISOString(),
             status: "active",
+            localPath: result.file.localPath,
           }
-        );
-
-        console.log("Database record created:", dbRecord); // Debug log
-
-        processedCount++;
-        setUploadStatus(
-          `Successfully processed ${processedCount} of ${files.length} files`
         );
       }
 
       await loadFiles();
       setIsModalOpen(false);
-      setUploadStatus("");
+      setError("");
     } catch (error: any) {
-      console.error("Upload error:", error);
-      setUploadStatus(`Upload failed: ${error.message}`);
+      console.error("Error uploading:", error);
       setError(error.message || "Failed to upload files");
+    } finally {
+      setUploadProgress({
+        current: 0,
+        total: 0,
+        currentFile: "",
+      });
     }
   };
   // Delete handlers
@@ -467,9 +491,26 @@ const Exercise = () => {
               </button>
             </div>
 
-            {uploadStatus && (
-              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-blue-600 text-sm">
-                {uploadStatus}
+            {uploadProgress.total > 0 && (
+              <div className="mb-4">
+                <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2">
+                  <div
+                    className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+                    style={{
+                      width: `${
+                        (uploadProgress.current / uploadProgress.total) * 100
+                      }%`,
+                    }}
+                  />
+                </div>
+                <p className="text-sm text-gray-600">
+                  Processing {uploadProgress.current} of {uploadProgress.total}
+                </p>
+                {uploadProgress.currentFile && (
+                  <p className="text-sm text-gray-500 truncate mt-1">
+                    Current file: {uploadProgress.currentFile}
+                  </p>
+                )}
               </div>
             )}
 
@@ -580,20 +621,6 @@ const Exercise = () => {
       )}
     </div>
   );
-};
-
-interface FileIconProps {
-  type: string;
-}
-
-const FileIcon = ({ type }: FileIconProps) => {
-  if (type.startsWith("image"))
-    return <ImageIcon className="w-5 h-5 text-blue-500" />;
-  if (type.startsWith("video"))
-    return <Video className="w-5 h-5 text-red-500" />;
-  if (type === "application/pdf")
-    return <FileText className="w-5 h-5 text-orange-500" />;
-  return <File className="w-5 h-5 text-gray-500" />;
 };
 
 export default Exercise;

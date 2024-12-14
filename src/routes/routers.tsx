@@ -1,4 +1,3 @@
-// src/routers.tsx
 import { createBrowserRouter, Outlet } from "react-router-dom";
 import { Suspense } from "react";
 import Login from "../contexts/auth/Login";
@@ -7,10 +6,12 @@ import ProtectedRoute from "./protectedRoute";
 import AdminPage from "../AdminPage";
 import PageNotFound from "./pageNotFound";
 import SearchResultsPage from "../Search/SearchResultsPage";
-import FileViewer from "../Education/exercise";
-import ClassroomPortal from "../Classroom/ClassroomPortal";
+import Exercise from "../Education/exercise";
+
 import ClassroomPage from "../Classroom/ClassroomPage";
 import ClassroomManagement from "../Classroom/ClassroomManagement";
+import Story from "../Education/Story";
+import LessonGrid from "../Education/LessonGrid";
 const App = () => {
   return (
     <Suspense
@@ -53,12 +54,28 @@ export const Router = createBrowserRouter([
         path: "/homepage",
         element: <HomePage />,
       },
-      // Add FileViewer route
+      // Changed FileViewer to Exercise
       {
-        path: "/education",
+        path: "/uploadExercise",
         element: (
           <ProtectedRoute>
-            <FileViewer />
+            <Exercise />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "/story",
+        element: (
+          <ProtectedRoute>
+            <Story />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "/lessonGrid",
+        element: (
+          <ProtectedRoute>
+            <LessonGrid />
           </ProtectedRoute>
         ),
       },
@@ -70,14 +87,7 @@ export const Router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
-      {
-        path: "/classroom-portal",
-        element: (
-          <ProtectedRoute>
-            <ClassroomPortal />
-          </ProtectedRoute>
-        ),
-      },
+
       {
         path: "/classroom/:classroomId",
         element: (

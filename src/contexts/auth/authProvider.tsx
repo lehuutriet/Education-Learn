@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext, useEffect } from "react";
 import { Client, Databases, Account, Functions, Storage } from "appwrite";
 import { showNotification } from "@mantine/notifications";
-
+import { DataCacheProvider } from "./DataCacheProvider";
 interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -130,7 +130,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         account,
       }}
     >
-      {children}
+      <DataCacheProvider>{children}</DataCacheProvider>
     </AuthContext.Provider>
   );
 };
