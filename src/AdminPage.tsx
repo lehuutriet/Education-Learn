@@ -19,6 +19,7 @@ import { useAuth } from "./contexts/auth/authProvider";
 
 import _ from "lodash";
 import { useNavigate } from "react-router-dom";
+import Exercise from "./Education/exercise";
 interface User {
   id: string;
   name: string;
@@ -51,6 +52,7 @@ const AdminPage = () => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState("users");
   const [formData, setFormData] = useState<UserFormData>({
     name: "",
     email: "",
@@ -295,9 +297,9 @@ const AdminPage = () => {
       setIsLoading(false);
     }
   };
-  const navigateToHomePage = () => {
-    navigate("/homepage");
-  };
+  // const navigateToHomePage = () => {
+  //   navigate("/homepage");
+  // };
   const arraysEqual = (a: string[], b: string[]) => {
     if (a === b) return true;
     if (!a || !b) return false;
@@ -396,429 +398,490 @@ const AdminPage = () => {
   });
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="absolute top-6 right-6 flex gap-4">
-        <button
-          onClick={navigateToHomePage}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Home className="size-4" />
-          Trang chủ
-        </button>
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
-        >
-          <LogOut className="size-4" />
-          Đăng xuất
-        </button>
-      </div>
-      {/* Dashboard Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Quản lý tài khoản</h1>
-        <p className="text-gray-600 mt-2">
-          Quản lý người dùng và phân quyền hệ thống
-        </p>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {/* Total Users Card */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-sm font-medium text-gray-600">
-              Tổng người dùng
-            </h3>
-            <Users className="size-4 text-blue-600" />
-          </div>
-          <div className="text-2xl font-bold text-gray-900">{users.length}</div>
-          <p className="text-xs text-gray-600 mt-1">Đang hoạt động</p>
-        </div>
-
-        {/* Role Stats Cards */}
-        {availableRoles.slice(0, 3).map((role) => (
-          <div
-            key={role}
-            className="bg-white p-6 rounded-xl shadow-sm border border-gray-100"
-          >
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-sm font-medium text-gray-600">{role}s</h3>
-              <UserCheck className="size-4 text-green-600" />
-            </div>
-            <div className="text-2xl font-bold text-gray-900">
-              {roleStats[role] || 0}
-            </div>
-            <p className="text-xs text-gray-600 mt-1">Người dùng</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Main Content Section */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+    <div className="min-h-screen bg-gray-50">
+      <div className="p-6">
         {/* Header Actions */}
-        <div className="p-6 border-b border-gray-100">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div className="flex-1">
-              <h2 className="text-xl font-semibold text-gray-900">
-                Danh sách thành viên
-              </h2>
-              <p className="text-sm text-gray-500 mt-1">
-                Quản lý và phân quyền người dùng trong hệ thống
-              </p>
-            </div>
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">
+              Quản trị hệ thống
+            </h1>
+            <p className="text-gray-600 mt-2">
+              Quản lý người dùng và tài liệu hệ thống
+            </p>
+          </div>
+          <div className="flex gap-4">
             <button
-              onClick={() => {
-                setIsModalOpen(true);
-                setIsEditMode(false);
-                resetForm();
-              }}
+              onClick={() => navigate("/homepage")}
               className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
             >
-              <UserPlus className="size-4" />
-              Thêm người dùng
+              <Home className="w-4 h-4" />
+              Trang chủ
             </button>
-          </div>
-
-          {/* Search and Filters */}
-          <div className="mt-6 flex flex-col md:flex-row gap-4">
-            <div className="flex-1 relative">
-              <input
-                type="text"
-                placeholder="Tìm kiếm theo tên, email hoặc số điện thoại..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              <Search className="absolute left-3 top-2.5 text-gray-400 size-5" />
-            </div>
-
-            <select
-              value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="">Tất cả vai trò</option>
-              {availableRoles.map((role) => (
-                <option key={role} value={role}>
-                  {role}
-                </option>
-              ))}
-            </select>
-
             <button
-              onClick={() => {
-                setSearchQuery("");
-                setRoleFilter("");
-              }}
-              className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              onClick={handleLogout}
+              className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
             >
-              Làm mới
+              <LogOut className="w-4 h-4" />
+              Đăng xuất
             </button>
           </div>
         </div>
 
-        {/* Error Message */}
-        {error && (
-          <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
-            <AlertCircle className="size-5 text-red-600 mt-0.5" />
-            <div>
-              <h4 className="text-sm font-medium text-red-800">Lỗi</h4>
-              <p className="text-sm text-red-600">{error}</p>
-            </div>
+        {/* Tab Navigation */}
+        <div className="border-b border-gray-200 mb-8">
+          <div className="flex space-x-8">
+            <button
+              onClick={() => setActiveTab("users")}
+              className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === "users"
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              Quản lý người dùng
+            </button>
+            <button
+              onClick={() => setActiveTab("files")}
+              className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === "files"
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              Quản lý tập tin
+            </button>
           </div>
-        )}
+        </div>
 
-        {/* Table Section */}
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-12">
-            <div className="flex flex-col items-center">
-              <div className="size-12 border-4 border-gray-200 border-t-blue-600 rounded-full animate-spin"></div>
-              <div className="mt-4 text-gray-600 text-sm font-medium text-center">
-                Đang tải dữ liệu...
+        {/* User Management Content */}
+        {activeTab === "users" && (
+          <>
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-sm font-medium text-gray-600">
+                    Tổng người dùng
+                  </h3>
+                  <Users className="w-4 h-4 text-blue-600" />
+                </div>
+                <div className="text-2xl font-bold text-gray-900">
+                  {users.length}
+                </div>
+                <p className="text-xs text-gray-600 mt-1">Đang hoạt động</p>
               </div>
+
+              {availableRoles.slice(0, 3).map((role) => (
+                <div
+                  key={role}
+                  className="bg-white p-6 rounded-xl shadow-sm border border-gray-100"
+                >
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-sm font-medium text-gray-600">
+                      {role}s
+                    </h3>
+                    <UserCheck className="w-4 h-4 text-green-600" />
+                  </div>
+                  <div className="text-2xl font-bold text-gray-900">
+                    {roleStats[role] || 0}
+                  </div>
+                  <p className="text-xs text-gray-600 mt-1">Người dùng</p>
+                </div>
+              ))}
             </div>
-          </div>
-        ) : (
-          /* Table Section */
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-gray-50">
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Họ và Tên
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Email
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Số điện thoại
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Ngày đăng ký
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Vai trò
-                  </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Chức năng
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {filteredUsers.map((user) => (
-                  <tr
-                    key={user.id}
-                    className="hover:bg-gray-50 transition-colors"
+
+            {/* Main Content Section */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+              {/* Header Actions */}
+              <div className="p-6 border-b border-gray-100">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div className="flex-1">
+                    <h2 className="text-xl font-semibold text-gray-900">
+                      Danh sách thành viên
+                    </h2>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Quản lý và phân quyền người dùng trong hệ thống
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setIsModalOpen(true);
+                      setIsEditMode(false);
+                      resetForm();
+                    }}
+                    className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
                   >
-                    <td className="px-6 py-4">
-                      <div className="font-medium text-gray-900">
-                        {user.name}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-gray-600">{user.email}</td>
-                    <td className="px-6 py-4 text-gray-600">{user.phone}</td>
-                    <td className="px-6 py-4 text-gray-600">
-                      {formatDate(user.registration)}
-                    </td>
-                    <td className="px-6 py-4">
-                      {user.labels.map((label) => (
-                        <span
-                          key={label}
-                          className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mr-2"
-                        >
-                          {label}
-                        </span>
-                      ))}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex justify-center gap-3">
-                        <button
-                          onClick={() => handleEdit(user)}
-                          className="text-blue-600 hover:text-blue-800 transition-colors"
-                        >
-                          <Edit2 className="size-4" />
-                        </button>
-                        <button
-                          onClick={() => deleteUser(user.id)}
-                          className="text-red-600 hover:text-red-800 transition-colors"
-                        >
-                          <Trash2 className="size-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-            <div className="bg-blue-600 px-6 py-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-white">
-                {isEditMode
-                  ? "Cập nhật thông tin người dùng"
-                  : "Thêm người dùng mới"}
-              </h2>
-              <button
-                onClick={closeUserModal}
-                className="text-white/80 hover:text-white transition-colors"
-              >
-                <X className="size-6" />
-              </button>
-            </div>
-
-            {error && (
-              <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3 animate-shake">
-                <AlertCircle className="size-5 text-red-600 mt-0.5 flex-shrink-0" />
-                <div>
-                  <h4 className="text-sm font-medium text-red-800">
-                    Có lỗi xảy ra
-                  </h4>
-                  <p className="text-sm text-red-600 mt-1">{error}</p>
+                    <UserPlus className="w-4 h-4" />
+                    Thêm người dùng
+                  </button>
                 </div>
-              </div>
-            )}
-            <form onSubmit={handleSubmit} className="p-6 space-y-6">
-              {/* Name Field */}
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Họ và tên <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <User className="size-5 text-gray-400" />
-                  </div>
-                  <input
-                    type="text"
-                    required
-                    value={formData.name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
-                    }
-                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                    placeholder="Nhập họ và tên"
-                  />
-                </div>
-              </div>
 
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Email <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Mail className="size-5 text-gray-400" />
+                {/* Search and Filters */}
+                <div className="mt-6 flex flex-col md:flex-row gap-4">
+                  <div className="flex-1 relative">
+                    <input
+                      type="text"
+                      placeholder="Tìm kiếm theo tên, email hoặc số điện thoại..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    <Search className="absolute left-3 top-2.5 text-gray-400 w-5 h-5" />
                   </div>
-                  <input
-                    type="email"
-                    required
-                    value={formData.email}
-                    onChange={(e) =>
-                      setFormData({ ...formData, email: e.target.value })
-                    }
-                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                    placeholder="Nhập địa chỉ email"
-                  />
-                </div>
-              </div>
 
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Số điện thoại <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Phone className="size-5 text-gray-400" />
-                  </div>
-                  <input
-                    type="tel"
-                    required
-                    value={formData.phone}
-                    onChange={(e) =>
-                      setFormData({ ...formData, phone: e.target.value })
-                    }
-                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                    placeholder="Nhập số điện thoại"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {isEditMode
-                    ? "Mật khẩu mới (để trống nếu không đổi)"
-                    : "Mật khẩu"}
-                </label>
-                <input
-                  type="password"
-                  required={!isEditMode}
-                  value={formData.password}
-                  onChange={(e) =>
-                    setFormData({ ...formData, password: e.target.value })
-                  }
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder={
-                    isEditMode ? "Nhập mật khẩu mới" : "Nhập mật khẩu"
-                  }
-                  minLength={8}
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  {isEditMode
-                    ? "Chỉ điền nếu muốn thay đổi mật khẩu"
-                    : "Mật khẩu phải có ít nhất 8 ký tự"}
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Vai trò <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <UserCheck className="size-5 text-gray-400" />
-                  </div>
                   <select
-                    required
-                    value={formData.role}
-                    onChange={(e) =>
-                      setFormData({ ...formData, role: e.target.value })
-                    }
-                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors appearance-none bg-white"
+                    value={roleFilter}
+                    onChange={(e) => setRoleFilter(e.target.value)}
+                    className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
-                    <option value="">-- Chọn vai trò --</option>
+                    <option value="">Tất cả vai trò</option>
                     {availableRoles.map((role) => (
                       <option key={role} value={role}>
                         {role}
                       </option>
                     ))}
                   </select>
-                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                    <svg
-                      className="size-5 text-gray-400"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  </div>
+
+                  <button
+                    onClick={() => {
+                      setSearchQuery("");
+                      setRoleFilter("");
+                    }}
+                    className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                  >
+                    Làm mới
+                  </button>
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-6 border-t">
+              {/* Error Message */}
+              {error && (
+                <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+                  <AlertCircle className="w-5 h-5 text-red-600 mt-0.5" />
+                  <div>
+                    <h4 className="text-sm font-medium text-red-800">Lỗi</h4>
+                    <p className="text-sm text-red-600">{error}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Users Table */}
+              {isLoading ? (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <div className="flex flex-col items-center">
+                    <div className="size-12 border-4 border-gray-200 border-t-blue-600 rounded-full animate-spin"></div>
+                    <div className="mt-4 text-gray-600 text-sm font-medium text-center">
+                      Đang tải dữ liệu...
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead role="rowgroup">
+                      <tr role="row" className="bg-gray-50">
+                        <th
+                          role="columnheader"
+                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                        >
+                          Họ và Tên
+                        </th>
+                        <th
+                          role="columnheader"
+                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                        >
+                          Email
+                        </th>
+                        <th
+                          role="columnheader"
+                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                        >
+                          Số điện thoại
+                        </th>
+                        <th
+                          role="columnheader"
+                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                        >
+                          Ngày đăng ký
+                        </th>
+                        <th
+                          role="columnheader"
+                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                        >
+                          Vai trò
+                        </th>
+                        <th
+                          role="columnheader"
+                          className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
+                        >
+                          Chức năng
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody role="rowgroup" className="divide-y divide-gray-200">
+                      {filteredUsers.map((user) => (
+                        <tr
+                          key={user.id}
+                          className="hover:bg-gray-50 transition-colors"
+                        >
+                          <td className="px-6 py-4">
+                            <div className="font-medium text-gray-900">
+                              {user.name}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-gray-600">
+                            {user.email}
+                          </td>
+                          <td className="px-6 py-4 text-gray-600">
+                            {user.phone}
+                          </td>
+                          <td className="px-6 py-4 text-gray-600">
+                            {formatDate(user.registration)}
+                          </td>
+                          <td className="px-6 py-4">
+                            {user.labels.map((label) => (
+                              <span
+                                key={label}
+                                className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mr-2"
+                              >
+                                {label}
+                              </span>
+                            ))}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex justify-center gap-3">
+                              <button
+                                onClick={() => handleEdit(user)}
+                                className="text-blue-600 hover:text-blue-800 transition-colors"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => deleteUser(user.id)}
+                                className="text-red-600 hover:text-red-800 transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* File Management Content */}
+        {activeTab === "files" && <Exercise />}
+
+        {/* User Modal */}
+        {isModalOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+              {/* Modal content */}
+              <div className="bg-blue-600 px-6 py-4 flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-white">
+                  {isEditMode
+                    ? "Cập nhật thông tin người dùng"
+                    : "Thêm người dùng mới"}
+                </h2>
                 <button
-                  type="button"
                   onClick={closeUserModal}
-                  className="px-4 py-2.5 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                  className="text-white/80 hover:text-white transition-colors"
                 >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center gap-2"
-                >
-                  {isLoading ? (
-                    <>
-                      <svg
-                        className="animate-spin size-4 text-white"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        ></circle>
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        ></path>
-                      </svg>
-                      <span>Đang xử lý...</span>
-                    </>
-                  ) : (
-                    <>{isEditMode ? "Cập nhật" : "Thêm"}</>
-                  )}
+                  <X className="w-6 h-6" />
                 </button>
               </div>
-            </form>
+
+              {error && (
+                <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3 animate-shake">
+                  <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h4 className="text-sm font-medium text-red-800">
+                      Có lỗi xảy ra
+                    </h4>
+                    <p className="text-sm text-red-600 mt-1">{error}</p>
+                  </div>
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} className="p-6 space-y-6">
+                {/* Form fields go here - match your existing form fields */}
+                {/* Name Field */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Họ và tên <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <User className="size-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="text"
+                      required
+                      value={formData.name}
+                      onChange={(e) =>
+                        setFormData({ ...formData, name: e.target.value })
+                      }
+                      className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      placeholder="Nhập họ và tên"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Email <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Mail className="size-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="email"
+                      required
+                      value={formData.email}
+                      onChange={(e) =>
+                        setFormData({ ...formData, email: e.target.value })
+                      }
+                      className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      placeholder="Nhập địa chỉ email"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Số điện thoại <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Phone className="size-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="tel"
+                      required
+                      value={formData.phone}
+                      onChange={(e) =>
+                        setFormData({ ...formData, phone: e.target.value })
+                      }
+                      className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      placeholder="Nhập số điện thoại"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {isEditMode
+                      ? "Mật khẩu mới (để trống nếu không đổi)"
+                      : "Mật khẩu"}
+                  </label>
+                  <input
+                    type="password"
+                    required={!isEditMode}
+                    value={formData.password}
+                    onChange={(e) =>
+                      setFormData({ ...formData, password: e.target.value })
+                    }
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder={
+                      isEditMode ? "Nhập mật khẩu mới" : "Nhập mật khẩu"
+                    }
+                    minLength={8}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    {isEditMode
+                      ? "Chỉ điền nếu muốn thay đổi mật khẩu"
+                      : "Mật khẩu phải có ít nhất 8 ký tự"}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Vai trò <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <UserCheck className="size-5 text-gray-400" />
+                    </div>
+                    <select
+                      required
+                      value={formData.role}
+                      onChange={(e) =>
+                        setFormData({ ...formData, role: e.target.value })
+                      }
+                      className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors appearance-none bg-white"
+                    >
+                      <option value="">-- Chọn vai trò --</option>
+                      {availableRoles.map((role) => (
+                        <option key={role} value={role}>
+                          {role}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                      <svg
+                        className="size-5 text-gray-400"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-3 pt-6 border-t">
+                  <button
+                    type="button"
+                    onClick={closeUserModal}
+                    className="px-4 py-2.5 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center gap-2"
+                  >
+                    {isLoading ? (
+                      <>
+                        <svg
+                          className="animate-spin size-4 text-white"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          ></path>
+                        </svg>
+                        <span>Đang xử lý...</span>
+                      </>
+                    ) : (
+                      <>{isEditMode ? "Cập nhật" : "Thêm"}</>
+                    )}
+                  </button>
+                </div>{" "}
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };

@@ -10,7 +10,7 @@ import {
   Trash2,
   AlertCircle,
 } from "lucide-react";
-
+import EducationalFooter from "../EducationalFooter/EducationalFooter";
 import { useNavigate } from "react-router-dom";
 import { Card, CardHeader, CardTitle, CardContent } from "../ui/card";
 import { useAuth } from "../contexts/auth/authProvider";
@@ -664,6 +664,8 @@ const ClassroomManagement = () => {
           </div>
         </div>
       )}
+
+      <EducationalFooter />
     </div>
   );
 };

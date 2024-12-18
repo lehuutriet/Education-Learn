@@ -5,7 +5,7 @@ import HomePage from "../HomePage";
 import ProtectedRoute from "./protectedRoute";
 import AdminPage from "../AdminPage";
 import PageNotFound from "./pageNotFound";
-import SearchResultsPage from "../Search/SearchResultsPage";
+import ExamManagement from "../Education/ExamManagement";
 import Exercise from "../Education/exercise";
 
 import ClassroomPage from "../Classroom/ClassroomPage";
@@ -36,10 +36,6 @@ export const Router = createBrowserRouter([
         path: "",
         element: <Login />,
       },
-      {
-        path: "/search-results",
-        element: <SearchResultsPage />,
-      },
 
       // Protected routes
       {
@@ -68,6 +64,14 @@ export const Router = createBrowserRouter([
         element: (
           <ProtectedRoute>
             <Story />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "/exam",
+        element: (
+          <ProtectedRoute>
+            <ExamManagement classroomId="classroomid" />
           </ProtectedRoute>
         ),
       },

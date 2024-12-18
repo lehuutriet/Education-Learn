@@ -325,7 +325,7 @@ const ClassroomChat: React.FC<ChatProps> = ({ classroomId }) => {
                   >
                     {message.isRecalled ? (
                       <p className="italic text-gray-500">
-                        Message has been recalled
+                        Tin nhắn đã được thu hồi
                       </p>
                     ) : (
                       <>

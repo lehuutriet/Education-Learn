@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/auth/authProvider";
 import Navigation from "../Navigation/Navigation";
 import ClassroomChat from "./ClassroomChat";
@@ -9,16 +9,17 @@ import { ScheduleItem } from "../type/type";
 import {
   BookOpen,
   Calendar,
-  FileText,
-  Download,
-  Plus,
   Loader,
   UserCheck,
   AlertCircle,
+  ArrowLeft,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "../ui/card";
 import { Models } from "appwrite";
 import TodaySchedule from "./TodaySchedule";
+import Assignments from "./Assignments";
+import { format } from "date-fns";
+import SubmissionHistory from "./SubmissionHistory";
 interface Classroom extends Models.Document {
   className: string;
   academicYear: string;
@@ -38,23 +39,14 @@ interface Assignment extends Models.Document {
   classroomId: string;
 }
 
-interface Material extends Models.Document {
-  title: string;
-  description: string;
-  type: "document" | "video" | "image" | "link";
-  fileId: string;
-  uploadedAt: string;
-  classroomId: string;
-}
-
-type TabType = "overview" | "assignments" | "materials" | "schedule" | "chat";
+type TabType = "overview" | "exam" | "schedule" | "chat" | "history";
 
 const ClassroomPage: React.FC = () => {
   const { databases, account } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [classroom, setClassroom] = useState<Classroom | null>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [materials, setMaterials] = useState<Material[]>([]);
+
   const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
   const { classroomId = "" } = useParams<{ classroomId: string }>();
   const [loading, setLoading] = useState(true);
@@ -63,11 +55,11 @@ const ClassroomPage: React.FC = () => {
   const DATABASE_ID = "674e5e7a0008e19d0ef0";
   const CLASSROOM_COLLECTION_ID = "675019710029634eb602";
   const ASSIGNMENTS_COLLECTION_ID = "67566466003b28582c75";
-  const MATERIALS_COLLECTION_ID = "6756696f002b58afb01c";
+
   const SCHEDULE_COLLECTION_ID = "675668e500195f7e0e72";
   const { getCachedData, setCachedData, isDataCached } = useDataCache();
   const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-
+  const navigate = useNavigate();
   useEffect(() => {
     if (classroomId) {
       fetchClassroomData();
@@ -91,7 +83,6 @@ const ClassroomPage: React.FC = () => {
     // Check cache first
     const CLASSROOM_CACHE_KEY = `classroom-${classroomId}`;
     const ASSIGNMENTS_CACHE_KEY = `assignments-${classroomId}`;
-    const MATERIALS_CACHE_KEY = `materials-${classroomId}`;
     const SCHEDULE_CACHE_KEY = `schedule-${classroomId}`;
 
     try {
@@ -124,22 +115,6 @@ const ClassroomPage: React.FC = () => {
           CACHE_DURATION
         );
         setAssignments(assignmentsResponse.documents as Assignment[]);
-      }
-
-      // Fetch materials
-      if (isDataCached(MATERIALS_CACHE_KEY)) {
-        setMaterials(getCachedData(MATERIALS_CACHE_KEY));
-      } else {
-        const materialsResponse = await databases.listDocuments(
-          DATABASE_ID,
-          MATERIALS_COLLECTION_ID
-        );
-        setCachedData(
-          MATERIALS_CACHE_KEY,
-          materialsResponse.documents,
-          CACHE_DURATION
-        );
-        setMaterials(materialsResponse.documents as Material[]);
       }
 
       // Fetch schedule
@@ -199,32 +174,23 @@ const ClassroomPage: React.FC = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {assignments.slice(0, 3).map((assignment) => (
-                  <div key={assignment.id} className="mb-4">
-                    <h3 className="font-medium">{assignment.title}</h3>
-                    <p className="text-sm text-gray-500">
-                      Hạn nộp:{" "}
-                      {new Date(assignment.dueDate).toLocaleDateString()}
-                    </p>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-green-500" />
-                  Tài liệu mới
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {materials.slice(0, 3).map((material) => (
-                  <div key={material.id} className="mb-4">
-                    <h3 className="font-medium">{material.title}</h3>
-                    <p className="text-sm text-gray-500">{material.type}</p>
-                  </div>
-                ))}
+                {assignments
+                  .filter(
+                    (assignment) => assignment.classroomId === classroomId
+                  )
+                  .slice(0, 3)
+                  .map((assignment) => (
+                    <div key={assignment.$id} className="mb-4">
+                      <h3 className="font-medium">{assignment.title}</h3>
+                      <p className="text-sm text-gray-500">
+                        Hạn nộp:{" "}
+                        {format(
+                          new Date(assignment.dueDate),
+                          "dd/MM/yyyy HH:mm"
+                        )}
+                      </p>
+                    </div>
+                  ))}
               </CardContent>
             </Card>
 
@@ -245,115 +211,8 @@ const ClassroomPage: React.FC = () => {
           </div>
         );
 
-      case "assignments":
-        return (
-          <div className="space-y-6">
-            {assignments.map((assignment) => (
-              <Card key={assignment.id}>
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <CardTitle>{assignment.title}</CardTitle>
-                      <p className="text-sm text-gray-500 mt-1">
-                        Hạn nộp:{" "}
-                        {new Date(assignment.dueDate).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        assignment.status === "published"
-                          ? "bg-green-100 text-green-800"
-                          : assignment.status === "closed"
-                          ? "bg-red-100 text-red-800"
-                          : "bg-yellow-100 text-yellow-800"
-                      }`}
-                    >
-                      {assignment.status === "published"
-                        ? "Đang mở"
-                        : assignment.status === "closed"
-                        ? "Đã đóng"
-                        : "Nháp"}
-                    </span>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600">{assignment.description}</p>
-                  {assignment.attachments &&
-                    assignment.attachments.length > 0 && (
-                      <div className="mt-4">
-                        <h4 className="text-sm font-medium text-gray-900 mb-2">
-                          Tệp đính kèm
-                        </h4>
-                        <div className="space-y-2">
-                          {assignment.attachments.map((attachment, index) => (
-                            <div
-                              key={index}
-                              className="flex items-center text-sm text-blue-600 hover:text-blue-800"
-                            >
-                              <Download className="w-4 h-4 mr-2" />
-                              <span>{attachment}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  <div className="mt-6">
-                    <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                      Nộp bài
-                    </button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        );
-
-      case "materials":
-        return (
-          <div>
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-semibold">Tài liệu học tập</h2>
-              <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                <Plus className="w-4 h-4" />
-                Thêm tài liệu
-              </button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {materials.map((material) => (
-                <Card key={material.id}>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="flex items-center gap-2">
-                        <FileText
-                          className={`w-5 h-5 ${
-                            material.type === "document"
-                              ? "text-blue-500"
-                              : material.type === "video"
-                              ? "text-red-500"
-                              : material.type === "image"
-                              ? "text-green-500"
-                              : "text-purple-500"
-                          }`}
-                        />
-                        {material.title}
-                      </CardTitle>
-                      <Download className="w-5 h-5 text-gray-400 hover:text-gray-600 cursor-pointer" />
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-gray-600">
-                      {material.description}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-2">
-                      Đăng tải:{" "}
-                      {new Date(material.uploadedAt).toLocaleDateString()}
-                    </p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-        );
+      case "exam":
+        return <Assignments classroomId={classroomId} />;
 
       case "schedule":
         if (!classroomId) {
@@ -375,6 +234,15 @@ const ClassroomPage: React.FC = () => {
           );
         }
         return <ClassroomChat classroomId={classroomId} />;
+      case "history":
+        if (!classroomId) {
+          return (
+            <div className="p-4 text-center text-gray-600">
+              Không tìm thấy thông tin lớp học
+            </div>
+          );
+        }
+        return <SubmissionHistory classroomId={classroomId} />;
     }
   };
 
@@ -384,6 +252,14 @@ const ClassroomPage: React.FC = () => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
+          <button
+            onClick={() => navigate("/classroomManagement")}
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            Quay lại danh sách lớp học
+          </button>
+
           <h1 className="text-3xl font-bold text-gray-900">
             {classroom.className}
           </h1>
@@ -409,25 +285,16 @@ const ClassroomPage: React.FC = () => {
               Tổng quan
             </button>
             <button
-              onClick={() => setActiveTab("assignments")}
+              onClick={() => setActiveTab("exam")}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === "assignments"
+                activeTab === "exam"
                   ? "border-blue-500 text-blue-600"
                   : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
               }`}
             >
               Bài tập
             </button>
-            <button
-              onClick={() => setActiveTab("materials")}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === "materials"
-                  ? "border-blue-500 text-blue-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
-            >
-              Tài liệu
-            </button>
+
             <button
               onClick={() => setActiveTab("schedule")}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
@@ -447,6 +314,16 @@ const ClassroomPage: React.FC = () => {
               }`}
             >
               Thảo luận
+            </button>
+            <button
+              onClick={() => setActiveTab("history")}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === "history"
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              Lịch sử nộp bài
             </button>
           </nav>
         </div>

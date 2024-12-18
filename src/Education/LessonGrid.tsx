@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Search, Eye, Download, Share2 } from "lucide-react";
 import Navigation from "../Navigation/Navigation";
+import EducationalFooter from "../EducationalFooter/EducationalFooter";
 
 const LessonGrid = () => {
   const [selectedGrade, setSelectedGrade] = useState("Lớp 1");
@@ -223,6 +224,7 @@ const LessonGrid = () => {
           </div>
         </div>
       </div>
+      <EducationalFooter />
     </div>
   );
 };

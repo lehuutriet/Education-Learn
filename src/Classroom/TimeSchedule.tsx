@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Clock, Plus, X, Save, AlertCircle } from "lucide-react";
+import { Clock, Plus, X, Save, AlertCircle, Trash2 } from "lucide-react";
 import { Card, CardContent } from "../ui/card";
 import { useAuth } from "../contexts/auth/authProvider";
 import { Models, ID } from "appwrite";
@@ -290,7 +290,7 @@ const TimeSchedule: React.FC<TimeScheduleProps> = ({ classroomId }) => {
                                   onClick={() => handleDelete(schedule.$id)}
                                   className="text-red-500 hover:text-red-700"
                                 >
-                                  <X className="w-4 h-4" />
+                                  <Trash2 className="w-4 h-4" />
                                 </button>
                               )}
                             </div>

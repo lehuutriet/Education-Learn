@@ -10,13 +10,12 @@ import {
   Plus,
   X,
   AlertCircle,
-  Download,
   Trash2,
   CheckSquare,
   Square,
 } from "lucide-react";
-import { ExecutionMethod, Models } from "appwrite";
-import Navigation from "../Navigation/Navigation";
+import { Models } from "appwrite";
+
 import { ID, Query } from "appwrite";
 
 interface FileIconProps {
@@ -47,17 +46,8 @@ interface AppwriteDocument extends Models.Document {
   uploadedBy: string;
   uploadedAt: string;
   status: string;
-  localPath: string;
-}
-
-interface FileItem {
-  id: string;
-  name: string;
-  type: string;
-  size?: number;
-  isDirectory: boolean;
-  path?: string;
-  localPath?: string;
+  fileId: string; // Appwrite Storage file ID
+  bucketId: string; // Appwrite Storage bucket ID
 }
 
 interface StoredFile {
@@ -68,11 +58,21 @@ interface StoredFile {
   uploadedBy: string;
   uploadedAt: string;
   status: string;
-  localPath: string;
+  fileId: string;
+  bucketId: string;
+}
+
+interface StoredFile {
+  $id: string;
+  name: string;
+  path: string;
+  type: string;
+  uploadedBy: string;
+  uploadedAt: string;
+  status: string;
 }
 
 const Exercise = () => {
-  const [, setFiles] = useState<FileItem[]>([]);
   const [storedFiles, setStoredFiles] = useState<StoredFile[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [error, setError] = useState("");
@@ -86,12 +86,13 @@ const Exercise = () => {
     total: 0,
     currentFile: "",
   });
-  const { functions, databases, account } = useAuth();
-  const functionId = "6757b08826369e75eaaf";
+  const { storage, databases, account } = useAuth();
+
   const DATABASE_ID = "674e5e7a0008e19d0ef0";
   const FILES_COLLECTION_ID = "6757aef2001ea2c6930a";
-
+  const BUCKET_ID = "675fa4df00276e666e01"; // Replace with your Appwrite Storage bucket ID
   // Selection handlers
+
   const toggleFileSelection = (fileId: string) => {
     setSelectedFiles((prev) => {
       const newSelection = new Set(prev);
@@ -118,31 +119,11 @@ const Exercise = () => {
     setError("");
 
     try {
-      // Replace get-folder-content with list-files endpoint
-      const response = await functions.createExecution(
-        functionId,
-        JSON.stringify({}), // No need for folder path since we're listing all files
-        false,
-        "/list-files",
-        ExecutionMethod.GET
-      );
-
-      if (response?.responseBody) {
-        const data = JSON.parse(response.responseBody);
-        if (data.success) {
-          setFiles(data.files || []);
-        }
-      }
-
-      // Load stored file records from database
       const storedFilesResponse =
         await databases.listDocuments<AppwriteDocument>(
           DATABASE_ID,
           FILES_COLLECTION_ID,
-          [
-            Query.orderDesc("$createdAt"),
-            Query.limit(10000), // Hoặc số lượng tùy ý, ví dụ 1000
-          ]
+          [Query.orderDesc("$createdAt"), Query.limit(10000)]
         );
 
       const convertedFiles: StoredFile[] = storedFilesResponse.documents.map(
@@ -154,7 +135,8 @@ const Exercise = () => {
           uploadedBy: doc.uploadedBy,
           uploadedAt: doc.uploadedAt,
           status: doc.status,
-          localPath: doc.path,
+          fileId: doc.fileId,
+          bucketId: doc.bucketId,
         })
       );
 
@@ -171,7 +153,9 @@ const Exercise = () => {
     loadFiles();
   }, []);
 
-  const handleFileUpload = async (event: any) => {
+  const handleFileUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const files = event.target.files;
     if (!files?.length) return;
 
@@ -183,34 +167,8 @@ const Exercise = () => {
 
     try {
       const user = await account.get();
-      const duplicates: string[] = [];
+      const errors: string[] = [];
 
-      // First check for duplicates
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const originalPath = file.webkitRelativePath || file.name;
-
-        // Check if file with same path exists
-        const existingFiles = await databases.listDocuments(
-          DATABASE_ID,
-          FILES_COLLECTION_ID,
-          [Query.equal("path", originalPath), Query.equal("status", "active")]
-        );
-
-        if (existingFiles.documents.length > 0) {
-          duplicates.push(originalPath);
-        }
-      }
-
-      // If duplicates found, show error and stop upload
-      if (duplicates.length > 0) {
-        setError(`The following files/folders already exist`);
-        setUploadProgress({ current: 0, total: 0, currentFile: "" });
-        setIsModalOpen(false);
-        return;
-      }
-
-      // If no duplicates, proceed with upload
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         setUploadProgress((prev) => ({
@@ -219,47 +177,64 @@ const Exercise = () => {
           currentFile: file.name,
         }));
 
-        const formData = new FormData();
-        formData.append("file", file);
-        const originalPath = file.webkitRelativePath || file.name;
-        formData.append("originalPath", originalPath);
+        try {
+          // Kiểm tra file trong database
+          const existingInDB = await databases.listDocuments(
+            DATABASE_ID,
+            FILES_COLLECTION_ID,
+            [Query.equal("name", file.name), Query.equal("status", "active")]
+          );
 
-        const response = await fetch("http://localhost:3001/upload", {
-          method: "POST",
-          body: formData,
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const result = await response.json();
-
-        if (!result.success) {
-          throw new Error(result.message || "Upload failed");
-        }
-
-        await databases.createDocument(
-          DATABASE_ID,
-          FILES_COLLECTION_ID,
-          ID.unique(),
-          {
-            name: file.name,
-            path: originalPath,
-            type: file.type,
-            uploadedBy: user.name,
-            uploadedAt: new Date().toISOString(),
-            status: "active",
-            localPath: result.file.localPath,
+          if (existingInDB.documents.length > 0) {
+            console.log(
+              `File ${file.name} already exists in database, skipping...`
+            );
+            continue;
           }
-        );
+
+          // Upload file và lấy ID từ response
+          const uploadedFile = await storage.createFile(
+            BUCKET_ID,
+            ID.unique(),
+            file
+          );
+
+          // File ID chính là ID từ response của createFile
+          const fileId = uploadedFile.$id;
+
+          // Tạo document trong database với fileId chính xác
+          await databases.createDocument(
+            DATABASE_ID,
+            FILES_COLLECTION_ID,
+            ID.unique(),
+            {
+              name: file.name,
+              path: file.webkitRelativePath || file.name,
+              type: file.type,
+              uploadedBy: user.name,
+              uploadedAt: new Date().toISOString(),
+              status: "active",
+              fileId: fileId, // Sử dụng fileId từ uploadedFile
+              bucketId: BUCKET_ID,
+            }
+          );
+        } catch (error: any) {
+          console.error(`Error processing file ${file.name}:`, error);
+          errors.push(`Failed to process ${file.name}: ${error.message}`);
+          continue;
+        }
       }
 
       await loadFiles();
       setIsModalOpen(false);
-      setError("");
+
+      if (errors.length > 0) {
+        setError(`Upload completed with some issues:\n${errors.join("\n")}`);
+      } else {
+        setError("");
+      }
     } catch (error: any) {
-      console.error("Error uploading:", error);
+      console.error("Error in upload process:", error);
       setError(error.message || "Failed to upload files");
     } finally {
       setUploadProgress({
@@ -269,6 +244,7 @@ const Exercise = () => {
       });
     }
   };
+
   // Delete handlers
   const handleDelete = async (file: StoredFile) => {
     setSelectedFile(file);
@@ -292,6 +268,8 @@ const Exercise = () => {
       const filesToDelete = storedFiles.filter((file) =>
         selectedFiles.has(file.$id)
       );
+
+      // Find any additional files that might be in subdirectories
       const additionalFiles = storedFiles.filter((file) =>
         filesToDelete.some(
           (selectedFile) =>
@@ -302,18 +280,39 @@ const Exercise = () => {
 
       const allFilesToDelete = [...filesToDelete, ...additionalFiles];
 
-      await Promise.all(
-        allFilesToDelete.map((file) =>
-          databases.deleteDocument(DATABASE_ID, FILES_COLLECTION_ID, file.$id)
-        )
-      );
+      // Create an array of promises for all delete operations
+      const deletePromises = allFilesToDelete.map(async (file) => {
+        try {
+          // Delete from Storage first
+          if (file.fileId && file.bucketId) {
+            await storage.deleteFile(file.bucketId, file.fileId);
+          }
 
+          // Then delete from Database
+          await databases.deleteDocument(
+            DATABASE_ID,
+            FILES_COLLECTION_ID,
+            file.$id
+          );
+        } catch (error) {
+          console.error(`Error deleting file ${file.name}:`, error);
+          throw error; // Re-throw to be caught by the outer try-catch
+        }
+      });
+
+      // Execute all delete operations
+      await Promise.all(deletePromises);
+
+      // Reset states
       setSelectedFiles(new Set());
       setDeleteModalOpen(false);
       setSelectedFile(null);
 
+      // Show success message
       setError(`Successfully deleted ${allFilesToDelete.length} files`);
       setTimeout(() => setError(""), 1500);
+
+      // Refresh the file list
       await loadFiles();
     } catch (error: any) {
       console.error("Error deleting files:", error);
@@ -325,13 +324,11 @@ const Exercise = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navigation />
-
       <div className="max-w-7xl mx-auto px-6 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Exercise Files</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Tập tin bài học</h1>
           <p className="mt-2 text-gray-600">
-            View and manage exercise materials and resources
+            Xem và quản lý tài liệu và nguồn tài nguyên bài tập
           </p>
         </div>
 
@@ -340,13 +337,13 @@ const Exercise = () => {
             <div className="flex justify-between items-center">
               <div className="flex-1">
                 <div className="flex items-center gap-4">
-                  <div className="text-lg font-semibold">Files</div>
+                  <div className="text-lg font-semibold">Tập tin</div>
                   <p className="text-sm text-gray-500">
-                    {storedFiles.length} files stored
+                    {storedFiles.length} Tập tin được lưu trữ
                   </p>
                   {selectedFiles.size > 0 && (
                     <p className="text-sm text-blue-600">
-                      {selectedFiles.size} selected
+                      {selectedFiles.size} Chọn
                     </p>
                   )}
                 </div>
@@ -362,7 +359,7 @@ const Exercise = () => {
                     ) : (
                       <Square className="w-5 h-5" />
                     )}
-                    Select All
+                    Chọn tất cả
                   </button>
                 )}
                 {selectedFiles.size > 0 && (
@@ -371,7 +368,7 @@ const Exercise = () => {
                     className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
                   >
                     <Trash2 className="w-4 h-4" />
-                    Delete Selected
+                    Xóa mục đã chọn
                   </button>
                 )}
                 <button
@@ -379,14 +376,14 @@ const Exercise = () => {
                   className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
                   disabled={loading}
                 >
-                  {loading ? "Loading..." : "Refresh"}
+                  {loading ? "Đang tải..." : "Tải lại"}
                 </button>
                 <button
                   onClick={() => setIsModalOpen(true)}
                   className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 >
                   <Plus className="w-4 h-4" />
-                  Upload File
+                  Tải lên tập tin
                 </button>
               </div>
             </div>
@@ -404,7 +401,7 @@ const Exercise = () => {
             {loading ? (
               <div className="flex flex-col items-center justify-center py-12">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-                <p className="mt-4 text-gray-600">Loading files...</p>
+                <p className="mt-4 text-gray-600">Đang tải tập tin...</p>
               </div>
             ) : storedFiles.length === 0 ? (
               <div className="text-center py-12">
@@ -412,10 +409,10 @@ const Exercise = () => {
                   <Folder className="w-8 h-8 text-gray-400" />
                 </div>
                 <h3 className="text-lg font-medium text-gray-900">
-                  No files yet
+                  Hiện tại không có tập tin
                 </h3>
                 <p className="mt-2 text-gray-500">
-                  Upload your first file to get started
+                  Tải tập tin đầu tiên của bạn để bắt đầu
                 </p>
               </div>
             ) : (
@@ -458,15 +455,6 @@ const Exercise = () => {
                         >
                           <Trash2 className="w-5 h-5" />
                         </button>
-                        <button
-                          onClick={() => {
-                            /* Add download logic */
-                          }}
-                          className="p-2 text-gray-400 hover:text-gray-600"
-                          title="Download"
-                        >
-                          <Download className="w-5 h-5" />
-                        </button>
                       </div>
                     </div>
                   </div>
@@ -482,7 +470,7 @@ const Exercise = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-semibold">Upload Files</h2>
+              <h2 className="text-xl font-semibold">Tải lên tệp tin</h2>
               <button
                 onClick={() => setIsModalOpen(false)}
                 className="text-gray-400 hover:text-gray-600"
@@ -519,7 +507,7 @@ const Exercise = () => {
                 <div className="flex flex-col items-center">
                   <Upload className="w-8 h-8 text-gray-400 mb-4" />
                   <p className="text-gray-600 text-center mb-4">
-                    Click to upload files or entire folders
+                    Nhấp để tải lên các tập tin hoặc toàn bộ thư mục
                   </p>
                   <div className="flex gap-4">
                     <div>
@@ -534,7 +522,7 @@ const Exercise = () => {
                         htmlFor="file-upload"
                         className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
                       >
-                        Select Files
+                        Chọn tập tin
                       </label>
                     </div>
                     <div>
@@ -550,7 +538,7 @@ const Exercise = () => {
                         htmlFor="folder-upload"
                         className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
                       >
-                        Select Folder
+                        Chọn thư mục
                       </label>
                     </div>
                   </div>
@@ -575,7 +563,7 @@ const Exercise = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-semibold">Confirm Delete</h2>
+              <h2 className="text-xl font-semibold">Xác nhận xóa</h2>
               <button
                 onClick={() => setDeleteModalOpen(false)}
                 className="text-gray-400 hover:text-gray-600"
@@ -587,14 +575,14 @@ const Exercise = () => {
             <div className="space-y-4">
               <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
                 <p className="text-red-600">
-                  Are you sure you want to delete{" "}
+                  Bạn có chắc chắn muốn xóa mục này?{" "}
                   {selectedFiles.size === 1
-                    ? "this item"
+                    ? "Tập tin này"
                     : `${selectedFiles.size} items`}
                   ?
                 </p>
                 <p className="mt-2 text-sm text-red-500">
-                  This action cannot be undone.
+                  Không thể hoàn tác hành động này
                 </p>
               </div>
 
@@ -606,13 +594,13 @@ const Exercise = () => {
                   }}
                   className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
                 >
-                  Cancel
+                  Hủy
                 </button>
                 <button
                   onClick={confirmDelete}
                   className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
                 >
-                  Delete
+                  Xóa
                 </button>
               </div>
             </div>
