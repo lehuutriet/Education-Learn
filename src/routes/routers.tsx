@@ -11,7 +11,7 @@ import Exercise from "../Education/exercise";
 import ClassroomPage from "../Classroom/ClassroomPage";
 import ClassroomManagement from "../Classroom/ClassroomManagement";
 import Story from "../Education/Story";
-import LessonGrid from "../Education/LessonGrid";
+import LessonGrid from "../learning/LessonGrid";
 const App = () => {
   return (
     <Suspense
@@ -75,6 +75,7 @@ export const Router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
+
       {
         path: "/lessonGrid",
         element: (

@@ -182,7 +182,7 @@ const Navigation = () => {
                     : "text-gray-700 border-transparent hover:text-purple-600 hover:border-purple-600"
                 }`}
               >
-                Bài giảng
+                Bài học
               </button>
 
               <button
@@ -321,7 +321,7 @@ const Navigation = () => {
                   isActiveLink("story") ? "text-purple-600" : "text-gray-700"
                 }`}
               >
-                Bài giảng
+                Bài học
               </button>
               <a
                 href="#"

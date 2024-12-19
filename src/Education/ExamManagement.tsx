@@ -1,27 +1,46 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../contexts/auth/authProvider";
 import { ID, Models, Query } from "appwrite";
+import Papa from "papaparse";
 import Navigation from "../Navigation/Navigation";
 import {
   Plus,
   Search,
-  FileText,
   Calendar,
   Clock,
-  Download,
   Trash2,
   AlertCircle,
-  Users,
   X,
   Upload,
   Eye,
-  CheckCircle,
 } from "lucide-react";
 import { format } from "date-fns";
+
+// Thêm type definitions cho kết quả parse từ Papaparse
+interface ParseResult {
+  data: Array<Array<string>>;
+  errors: Array<any>;
+  meta: {
+    delimiter: string;
+    linebreak: string;
+    aborted: boolean;
+    truncated: boolean;
+    cursor: number;
+  };
+}
+
+interface Question {
+  id: string;
+  text: string;
+  options: string[];
+  correctAnswer: number;
+}
 
 interface Exam extends Models.Document {
   title: string;
   description: string;
+  type: "multiple_choice" | "file_upload";
+  questions?: Question[];
   duration: number;
   startTime: string;
   endTime: string;
@@ -32,34 +51,32 @@ interface Exam extends Models.Document {
   maxScore: number;
 }
 
-interface ExamSubmission extends Models.Document {
-  examId: string;
-  userId: string;
-  userName: string;
-  files: string[];
-  submittedAt: string;
-  score?: number;
-  feedback?: string;
-}
+// interface ExamSubmission extends Models.Document {
+//   examId: string;
+//   userId: string;
+//   userName: string;
+//   files: string[];
+//   answers?: { questionId: string; selectedOption: number }[];
+//   submittedAt: string;
+//   score?: number;
+//   feedback?: string;
+// }
 
 const ExamManagement = ({ classroomId }: { classroomId: string }) => {
   const [exams, setExams] = useState<Exam[]>([]);
-  const [selectedExam, setSelectedExam] = useState<Exam | null>(null);
+  const [, setSelectedExam] = useState<Exam | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [, setIsViewModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [, setCurrentUserId] = useState("");
-  const [userRole, setUserRole] = useState("");
-
-  const { databases, storage, account } = useAuth();
-
-  const DATABASE_ID = "674e5e7a0008e19d0ef0";
-  const EXAMS_COLLECTION_ID = "6760f266000f252ae278";
-  const SUBMISSIONS_EXAM_COLLECTION_ID = "67628d9e0002ef805b72";
-  const BUCKET_ID = "67628e470015cec00d8b";
+  const [, setUserRole] = useState("");
+  const [examType, setExamType] = useState<"multiple_choice" | "file_upload">(
+    "multiple_choice"
+  );
+  const [questions, setQuestions] = useState<Question[]>([]);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -69,6 +86,28 @@ const ExamManagement = ({ classroomId }: { classroomId: string }) => {
     endTime: "",
     maxScore: 10,
   });
+
+  const { databases, storage, account } = useAuth();
+
+  const DATABASE_ID = "674e5e7a0008e19d0ef0";
+  const EXAMS_COLLECTION_ID = "6760f266000f252ae278";
+  const BUCKET_ID = "67628e470015cec00d8b";
+
+  // Thêm function handler cho file view và submissions
+  const handleViewFile = async (fileId: string) => {
+    try {
+      const fileUrl = storage.getFileView(BUCKET_ID, fileId);
+      window.open(fileUrl.toString(), "_blank");
+    } catch (error) {
+      console.error("Error viewing file:", error);
+      setError("Không thể mở file");
+    }
+  };
+
+  const handleViewSubmissions = (exam: Exam) => {
+    setSelectedExam(exam);
+    setIsViewModalOpen(true);
+  };
 
   useEffect(() => {
     const getCurrentUser = async () => {
@@ -101,6 +140,50 @@ const ExamManagement = ({ classroomId }: { classroomId: string }) => {
     }
   };
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+
+      if (file.type === "application/json") {
+        try {
+          const text = await file.text();
+          const json = JSON.parse(text);
+          if (Array.isArray(json)) {
+            const parsedQuestions = json.map((q, index) => ({
+              id: index.toString(),
+              text: q.question || "",
+              options: q.options || [],
+              correctAnswer: q.correctAnswer || 0,
+            }));
+            setQuestions(parsedQuestions);
+          }
+        } catch (error) {
+          console.error("Error parsing JSON:", error);
+          setError("Invalid JSON format");
+        }
+      } else if (file.type === "text/csv") {
+        Papa.parse(file, {
+          complete: (results: ParseResult) => {
+            const parsedQuestions = results.data.map((row, index) => ({
+              id: index.toString(),
+              text: row[0],
+              options: [row[1], row[2], row[3], row[4]],
+              correctAnswer: parseInt(row[5]) || 0,
+            }));
+            setQuestions(parsedQuestions);
+          },
+          header: false,
+          error: (error: Error) => {
+            console.error("CSV parsing error:", error);
+            setError("Không thể đọc file CSV");
+          },
+        });
+      } else {
+        setFiles(Array.from(e.target.files));
+      }
+    }
+  };
+
   const handleCreateExam = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
@@ -109,25 +192,30 @@ const ExamManagement = ({ classroomId }: { classroomId: string }) => {
       setLoading(true);
       const user = await account.get();
 
-      // Upload files
-      const fileIds = await Promise.all(
-        files.map(async (file) => {
-          const uploaded = await storage.createFile(
-            BUCKET_ID,
-            ID.unique(),
-            file
-          );
-          return uploaded.$id;
-        })
-      );
-
-      const examData = {
+      let examData: any = {
         ...formData,
+        type: examType,
         status: "draft",
-        attachments: fileIds,
         classroomId,
         createdBy: user.$id,
       };
+
+      if (examType === "multiple_choice") {
+        examData.questions = questions;
+      } else {
+        // Upload files for file upload type
+        const fileIds = await Promise.all(
+          files.map(async (file) => {
+            const uploaded = await storage.createFile(
+              BUCKET_ID,
+              ID.unique(),
+              file
+            );
+            return uploaded.$id;
+          })
+        );
+        examData.attachments = fileIds;
+      }
 
       await databases.createDocument(
         DATABASE_ID,
@@ -144,22 +232,6 @@ const ExamManagement = ({ classroomId }: { classroomId: string }) => {
       setError("Không thể tạo đề thi");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      setFiles(Array.from(e.target.files));
-    }
-  };
-
-  const handleDownloadFile = async (fileId: string) => {
-    try {
-      const fileUrl = storage.getFileDownload(BUCKET_ID, fileId);
-      window.open(fileUrl.toString(), "_blank");
-    } catch (error) {
-      console.error("Error downloading file:", error);
-      setError("Không thể tải file");
     }
   };
 
@@ -183,6 +255,10 @@ const ExamManagement = ({ classroomId }: { classroomId: string }) => {
       setError("Vui lòng điền đầy đủ thông tin bắt buộc");
       return false;
     }
+    if (examType === "multiple_choice" && questions.length === 0) {
+      setError("Vui lòng thêm ít nhất một câu hỏi");
+      return false;
+    }
     return true;
   };
 
@@ -196,465 +272,392 @@ const ExamManagement = ({ classroomId }: { classroomId: string }) => {
       maxScore: 10,
     });
     setFiles([]);
+    setQuestions([]);
     setError(null);
   };
 
-  const filteredExams = exams.filter((exam) =>
-    exam.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const isTeacherOrAdmin = () => ["Teacher", "Admin"].includes(userRole);
-
-  return (
-    <div className="space-y-6">
-      {/* Header Actions */}
-      <Navigation />
+  // Component for Question Form
+  const QuestionForm = () => (
+    <div className="space-y-4 mt-4">
       <div className="flex justify-between items-center">
-        <div className="flex-1 max-w-lg">
-          <div className="relative">
+        <h3 className="text-lg font-medium">Câu hỏi trắc nghiệm</h3>
+        <button
+          onClick={() => {
+            const input = document.createElement("input");
+            input.type = "file";
+            input.accept = ".json,.csv";
+            input.onchange = (e) => handleFileChange(e as any);
+            input.click();
+          }}
+          className="px-4 py-2 text-blue-600 border border-blue-600 rounded hover:bg-blue-50"
+        >
+          Import từ file
+        </button>
+      </div>
+
+      {questions.map((q, index) => (
+        <div key={q.id} className="p-4 border rounded-lg bg-white shadow-sm">
+          <div className="flex justify-between items-center mb-3">
+            <h4 className="font-medium">Câu hỏi {index + 1}</h4>
+            <button
+              onClick={() => {
+                setQuestions(questions.filter((que) => que.id !== q.id));
+              }}
+              className="text-red-500 hover:bg-red-50 p-1 rounded"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="space-y-3">
             <input
               type="text"
-              placeholder="Tìm kiếm đề thi..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              value={q.text}
+              onChange={(e) => {
+                const newQuestions = [...questions];
+                newQuestions[index].text = e.target.value;
+                setQuestions(newQuestions);
+              }}
+              className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="Nhập câu hỏi"
             />
-            <Search className="absolute left-3 top-2.5 text-gray-400 w-5 h-5" />
+
+            <div className="space-y-2">
+              {q.options.map((opt, optIndex) => (
+                <div key={optIndex} className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name={`question-${q.id}`}
+                    checked={q.correctAnswer === optIndex}
+                    onChange={() => {
+                      const newQuestions = [...questions];
+                      newQuestions[index].correctAnswer = optIndex;
+                      setQuestions(newQuestions);
+                    }}
+                    className="w-4 h-4 text-blue-600"
+                  />
+                  <input
+                    type="text"
+                    value={opt}
+                    onChange={(e) => {
+                      const newQuestions = [...questions];
+                      newQuestions[index].options[optIndex] = e.target.value;
+                      setQuestions(newQuestions);
+                    }}
+                    className="flex-1 p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder={`Đáp án ${optIndex + 1}`}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
         </div>
+      ))}
 
-        {isTeacherOrAdmin() && (
+      <button
+        onClick={() => {
+          setQuestions([
+            ...questions,
+            {
+              id: Date.now().toString(),
+              text: "",
+              options: ["", "", "", ""],
+              correctAnswer: 0,
+            },
+          ]);
+        }}
+        className="w-full py-2 flex items-center justify-center gap-2 text-blue-600 border border-dashed border-blue-300 rounded-lg hover:bg-blue-50"
+      >
+        <Plus className="w-4 h-4" />
+        Thêm câu hỏi
+      </button>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <Navigation />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Quản lý đề thi</h1>
+          <p className="mt-2 text-gray-600">
+            Tạo và quản lý các đề thi trong lớp học
+          </p>
+        </div>
+
+        {/* Actions */}
+        <div className="mb-6 flex justify-between items-center">
+          <div className="w-full max-w-xs">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Tìm kiếm đề thi..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border rounded-lg"
+              />
+              <Search className="absolute left-3 top-2.5 text-gray-400 w-5 h-5" />
+            </div>
+          </div>
+
           <button
             onClick={() => setIsCreateModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
             <Plus className="w-4 h-4" />
             Tạo đề thi mới
           </button>
-        )}
-      </div>
-
-      {/* Error Message */}
-      {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
-          <AlertCircle className="w-5 h-5 text-red-600" />
-          <p className="text-red-600">{error}</p>
         </div>
-      )}
 
-      {/* Exams Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredExams.map((exam) => (
-          <div
-            key={exam.$id}
-            className="bg-white rounded-lg shadow-sm border p-4"
-          >
-            <div className="flex justify-between items-start mb-4">
-              <h3 className="font-medium text-lg text-gray-900">
-                {exam.title}
-              </h3>
-              <span
-                className={`px-2 py-1 rounded-full text-xs font-medium 
-                ${
-                  exam.status === "published"
-                    ? "bg-green-100 text-green-800"
-                    : exam.status === "completed"
-                    ? "bg-gray-100 text-gray-800"
-                    : "bg-yellow-100 text-yellow-800"
-                }`}
-              >
-                {exam.status === "published"
-                  ? "Đã công bố"
-                  : exam.status === "completed"
-                  ? "Đã kết thúc"
-                  : "Bản nháp"}
-              </span>
-            </div>
-
-            <div className="space-y-2 mb-4">
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <Calendar className="w-4 h-4" />
-                <span>
-                  Bắt đầu:{" "}
-                  {format(new Date(exam.startTime), "dd/MM/yyyy HH:mm")}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <Clock className="w-4 h-4" />
-                <span>Thời gian: {exam.duration} phút</span>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between pt-4 border-t">
-              <div className="flex gap-2">
-                {exam.attachments?.map((fileId, index) => (
-                  <button
-                    key={fileId}
-                    onClick={() => handleDownloadFile(fileId)}
-                    className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+        {/* Exams Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {exams.map((exam) => (
+            <div
+              key={exam.$id}
+              className="bg-white rounded-lg shadow-sm border p-6"
+            >
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h3 className="font-medium text-lg text-gray-900">
+                    {exam.title}
+                  </h3>
+                  <span
+                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      exam.type === "multiple_choice"
+                        ? "bg-purple-100 text-purple-800"
+                        : "bg-blue-100 text-blue-800"
+                    }`}
                   >
-                    <Download className="w-4 h-4" />
-                    File {index + 1}
-                  </button>
-                ))}
-              </div>
-
-              <div className="flex gap-2">
-                {isTeacherOrAdmin() && (
-                  <>
-                    <button
-                      onClick={() => handleDeleteExam(exam.$id)}
-                      className="p-1 text-red-600 hover:bg-red-50 rounded"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        setSelectedExam(exam);
-                        setIsViewModalOpen(true);
-                      }}
-                      className="p-1 text-blue-600 hover:bg-blue-50 rounded"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Create Exam Modal */}
-      {isCreateModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-semibold">Tạo đề thi mới</h2>
-              <button
-                onClick={() => {
-                  setIsCreateModalOpen(false);
-                  resetForm();
-                }}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateExam} className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Tiêu đề <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.title}
-                  onChange={(e) =>
-                    setFormData({ ...formData, title: e.target.value })
-                  }
-                  className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Mô tả
-                </label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) =>
-                    setFormData({ ...formData, description: e.target.value })
-                  }
-                  className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  rows={3}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Thời gian bắt đầu <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={formData.startTime}
-                    onChange={(e) =>
-                      setFormData({ ...formData, startTime: e.target.value })
-                    }
-                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Thời gian kết thúc <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={formData.endTime}
-                    onChange={(e) =>
-                      setFormData({ ...formData, endTime: e.target.value })
-                    }
-                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Thời gian làm bài (phút)
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.duration}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        duration: parseInt(e.target.value),
-                      })
-                    }
-                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    min={1}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Điểm tối đa
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.maxScore}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        maxScore: parseFloat(e.target.value),
-                      })
-                    }
-                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    min={0}
-                    step={0.1}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Tài liệu đính kèm
-                </label>
-                <div className="flex items-center space-x-2">
-                  <label
-                    htmlFor="file-upload"
-                    className="cursor-pointer px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
-                  >
-                    <Upload className="w-4 h-4 mr-2 inline-block" />
-                    Chọn file
-                  </label>
-                  <input
-                    id="file-upload"
-                    type="file"
-                    multiple
-                    onChange={handleFileChange}
-                    className="hidden"
-                  />
-                  <span className="text-sm text-gray-500">
-                    {files.length} file đã chọn
+                    {exam.type === "multiple_choice"
+                      ? "Trắc nghiệm"
+                      : "Tự luận"}
                   </span>
                 </div>
+                // Tiếp tục phần return JSX
+                <span
+                  className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    exam.status === "published"
+                      ? "bg-green-100 text-green-800"
+                      : exam.status === "completed"
+                      ? "bg-gray-100 text-gray-800"
+                      : "bg-yellow-100 text-yellow-800"
+                  }`}
+                >
+                  {exam.status === "published"
+                    ? "Đã công bố"
+                    : exam.status === "completed"
+                    ? "Đã kết thúc"
+                    : "Bản nháp"}
+                </span>
               </div>
 
-              <div className="text-right">
+              <div className="space-y-2 mb-4">
+                <p className="text-sm text-gray-600">{exam.description}</p>
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <Calendar className="w-4 h-4" />
+                  <span>
+                    Bắt đầu:{" "}
+                    {format(new Date(exam.startTime), "dd/MM/yyyy HH:mm")}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <Clock className="w-4 h-4" />
+                  <span>Thời gian: {exam.duration} phút</span>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t flex justify-between items-center">
+                <div className="flex gap-2">
+                  {exam.type === "file_upload" &&
+                    exam.attachments?.map((fileId, index) => (
+                      <button
+                        key={fileId}
+                        onClick={() => handleViewFile(fileId)}
+                        className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                      >
+                        <Eye className="w-4 h-4" />
+                        Xem file {index + 1}
+                      </button>
+                    ))}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleViewSubmissions(exam)}
+                    className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                  >
+                    <Eye className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteExam(exam.$id)}
+                    className="p-1 text-red-600 hover:bg-red-50 rounded"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Create Modal */}
+        {isCreateModalOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+            <div className="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold">Tạo đề thi mới</h2>
                 <button
-                  type="submit"
-                  disabled={loading}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => {
+                    setIsCreateModalOpen(false);
+                    resetForm();
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
                 >
-                  {loading ? "Đang tạo..." : "Tạo đề thi"}
+                  <X className="w-6 h-6" />
                 </button>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
 
-      {/* Exam Submissions Modal */}
-      {isViewModalOpen && selectedExam && (
-        <ExamSubmissionsModal
-          isOpen={isViewModalOpen}
-          onClose={() => {
-            setIsViewModalOpen(false);
-            setSelectedExam(null);
-          }}
-          exam={selectedExam}
-        />
-      )}
+              {error && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 text-red-600" />
+                  <p className="text-red-600">{error}</p>
+                </div>
+              )}
 
-      {/* No Exams Message */}
-      {!loading && filteredExams.length === 0 && (
-        <div className="text-center py-8">
-          <FileText className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-lg font-medium text-gray-900">
-            Chưa có đề thi nào
-          </h3>
-          <p className="mt-1 text-gray-500">
-            Hãy tạo đề thi đầu tiên cho lớp học của bạn.
-          </p>
-        </div>
-      )}
-    </div>
-  );
-};
+              <form onSubmit={handleCreateExam} className="space-y-6">
+                {/* Chọn loại đề thi */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Loại đề thi
+                  </label>
+                  <select
+                    value={examType}
+                    onChange={(e) =>
+                      setExamType(
+                        e.target.value as "multiple_choice" | "file_upload"
+                      )
+                    }
+                    className="w-full p-2 border rounded-lg"
+                  >
+                    <option value="multiple_choice">Trắc nghiệm</option>
+                    <option value="file_upload">Tự luận (nộp file)</option>
+                  </select>
+                </div>
 
-// Exam Submissions Modal Component
-interface ExamSubmissionsModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  exam: Exam;
-}
+                {/* Thông tin cơ bản */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Tiêu đề <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.title}
+                    onChange={(e) =>
+                      setFormData({ ...formData, title: e.target.value })
+                    }
+                    className="w-full p-2 border rounded-lg"
+                    required
+                  />
+                </div>
 
-const ExamSubmissionsModal = ({
-  isOpen,
-  onClose,
-  exam,
-}: ExamSubmissionsModalProps) => {
-  const [submissions, setSubmissions] = useState<ExamSubmission[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Mô tả
+                  </label>
+                  <textarea
+                    value={formData.description}
+                    onChange={(e) =>
+                      setFormData({ ...formData, description: e.target.value })
+                    }
+                    className="w-full p-2 border rounded-lg"
+                    rows={3}
+                  />
+                </div>
 
-  const { databases, storage } = useAuth();
-
-  useEffect(() => {
-    if (isOpen) {
-      fetchSubmissions();
-    }
-  }, [isOpen]);
-
-  const fetchSubmissions = async () => {
-    try {
-      setLoading(true);
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        SUBMISSIONS_EXAM_COLLECTION_ID,
-        [Query.equal("examId", [exam.$id])]
-      );
-      setSubmissions(response.documents as ExamSubmission[]);
-    } catch (error) {
-      console.error("Error fetching submissions:", error);
-      setError("Không thể tải danh sách bài nộp");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleViewFile = async (fileId: string) => {
-    try {
-      const fileUrl = storage.getFileView(BUCKET_ID, fileId);
-      window.open(fileUrl.toString(), "_blank");
-    } catch (error) {
-      console.error("Error viewing file:", error);
-      setError("Không thể mở file");
-    }
-  };
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl p-6 max-h-[80vh] overflow-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold">Bài nộp</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            <X className="w-6 h-6" />
-          </button>
-        </div>
-
-        {error && (
-          <div className="p-4 mb-6 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-red-600" />
-            <p className="text-red-600">{error}</p>
-          </div>
-        )}
-
-        {loading ? (
-          <div className="text-center py-8">
-            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] text-blue-500 motion-reduce:animate-[spin_1.5s_linear_infinite]"></div>
-          </div>
-        ) : submissions.length === 0 ? (
-          <div className="text-center py-8">
-            <Users className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-lg font-medium text-gray-900">
-              Chưa có bài nộp
-            </h3>
-            <p className="mt-1 text-gray-500">
-              Hiện chưa có học sinh nào nộp bài thi này.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-8">
-            {submissions.map((submission) => (
-              <div key={submission.$id} className="bg-gray-50 p-4 rounded-lg">
-                <div className="flex justify-between items-start mb-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <h3 className="text-lg font-medium text-gray-900">
-                      {submission.userName}
-                    </h3>
-                    <div className="text-sm text-gray-500 mt-1">
-                      Nộp lúc:{" "}
-                      {format(
-                        new Date(submission.submittedAt),
-                        "dd/MM/yyyy HH:mm"
-                      )}
-                    </div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Thời gian bắt đầu <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={formData.startTime}
+                      onChange={(e) =>
+                        setFormData({ ...formData, startTime: e.target.value })
+                      }
+                      className="w-full p-2 border rounded-lg"
+                      required
+                    />
                   </div>
-                  {submission.score !== undefined && (
-                    <div className="px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
-                      {submission.score} điểm
-                    </div>
-                  )}
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Thời gian kết thúc <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={formData.endTime}
+                      onChange={(e) =>
+                        setFormData({ ...formData, endTime: e.target.value })
+                      }
+                      className="w-full p-2 border rounded-lg"
+                      required
+                    />
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  {submission.files?.map((fileId, index) => (
-                    <button
-                      key={fileId}
-                      onClick={() => handleViewFile(fileId)}
-                      className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800"
-                    >
-                      <FileText className="w-4 h-4" />
-                      File {index + 1}
-                    </button>
-                  ))}
-                </div>
-
-                {submission.feedback && (
-                  <div className="mt-4 p-3 rounded-lg border">
-                    <div className="text-sm font-medium text-gray-700 mb-1">
-                      Nhận xét của giáo viên:
+                {/* Form trắc nghiệm hoặc upload file */}
+                {examType === "multiple_choice" ? (
+                  <QuestionForm />
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Tệp đính kèm
+                    </label>
+                    <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-lg">
+                      <div className="space-y-1 text-center">
+                        <Upload className="mx-auto h-12 w-12 text-gray-400" />
+                        <div className="flex text-sm text-gray-600">
+                          <label className="relative cursor-pointer rounded-md font-medium text-blue-600 hover:text-blue-500">
+                            <span>Upload a file</span>
+                            <input
+                              type="file"
+                              className="sr-only"
+                              onChange={handleFileChange}
+                              multiple
+                            />
+                          </label>
+                          <p className="pl-1">or drag and drop</p>
+                        </div>
+                        <p className="text-xs text-gray-500">
+                          PDF, DOCX up to 10MB
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-sm text-gray-600">
-                      {submission.feedback}
-                    </p>
                   </div>
                 )}
 
-                {submission.score !== undefined && (
-                  <div className="mt-4">
-                    <div className="flex items-center text-sm text-gray-600">
-                      <CheckCircle className="w-4 h-4 mr-1 text-green-500" />
-                      Đã chấm điểm
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
+                <div className="flex justify-end gap-3 pt-6">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCreateModalOpen(false);
+                      resetForm();
+                    }}
+                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {loading ? "Đang tạo..." : "Tạo đề thi"}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         )}
       </div>
