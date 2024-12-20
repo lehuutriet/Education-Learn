@@ -1,6 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Modal from "../components/Modal";
-
 import {
   Star,
   Lock,
@@ -8,10 +7,14 @@ import {
   CircleCheck,
   BookOpen,
   School,
-  Mic,
+  University,
   Brain,
 } from "lucide-react";
 import LessonExercise from "./LessonExercise";
+import { useAuth } from "../contexts/auth/authProvider";
+import { ID, Query } from "appwrite";
+
+// Định nghĩa interface cho bài học
 interface Lesson {
   id: number;
   title: string;
@@ -23,31 +26,32 @@ interface Lesson {
   stars: number;
 }
 
-const lessons: Lesson[] = [
+// Định nghĩa initial state cho lessons
+const initialLessons: Lesson[] = [
   {
     id: 1,
-    title: "Cơ bản 1",
+    title: "Cơ bản",
     icon: BookOpen,
     color: "#58CC02",
     isLocked: false,
-    isCompleted: true,
+    isCompleted: false,
     requiredLevel: 1,
-    stars: 3,
+    stars: 0,
   },
   {
     id: 2,
-    title: "Cơ bản 2",
+    title: "Trung cấp",
     icon: School,
     color: "#58CC02",
     isLocked: false,
-    isCompleted: true,
+    isCompleted: false,
     requiredLevel: 1,
-    stars: 2,
+    stars: 0,
   },
   {
     id: 3,
-    title: "Phát âm",
-    icon: Mic,
+    title: "Nâng cao",
+    icon: University,
     color: "#CE82FF",
     isLocked: false,
     isCompleted: false,
@@ -56,10 +60,10 @@ const lessons: Lesson[] = [
   },
   {
     id: 4,
-    title: "Từ vựng",
+    title: "Tổng hợp",
     icon: Brain,
     color: "#FF9600",
-    isLocked: true,
+    isLocked: false,
     isCompleted: false,
     requiredLevel: 3,
     stars: 0,
@@ -67,8 +71,67 @@ const lessons: Lesson[] = [
 ];
 
 const LearningContent = () => {
+  const [lessons, setLessons] = useState<Lesson[]>(initialLessons);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [lessonStars, setLessonStars] = useState<{ [key: number]: number }>({});
+
+  const { databases, account } = useAuth();
+  const DATABASE_ID = "674e5e7a0008e19d0ef0";
+  const USER_PROGRESS_COLLECTION_ID = "67651970003a2f138575";
+
+  useEffect(() => {
+    const fetchUserProgress = async () => {
+      try {
+        const user = await account.get();
+        const response = await databases.listDocuments(
+          DATABASE_ID,
+          USER_PROGRESS_COLLECTION_ID,
+          [Query.equal("userId", [user.$id])]
+        );
+
+        const progressMap: { [key: number]: number } = {};
+        const completedLessons = new Set<number>();
+
+        response.documents.forEach((doc) => {
+          progressMap[doc.lessonId] = doc.stars;
+          if (doc.isCompleted) {
+            completedLessons.add(doc.lessonId);
+          }
+        });
+
+        setLessonStars(progressMap);
+
+        // Cập nhật trạng thái hoàn thành và mở khóa của bài học
+        const updatedLessons = lessons.map((lesson) => {
+          const isCompleted = completedLessons.has(lesson.id);
+          // Kiểm tra nếu là bài Tổng hợp (id = 4)
+          if (lesson.id === 4) {
+            // Mở khóa nếu 3 bài học đầu đều đã hoàn thành
+            const isUnlocked = [1, 2, 3].every((id) =>
+              completedLessons.has(id)
+            );
+            return {
+              ...lesson,
+              isCompleted,
+              stars: progressMap[lesson.id] || 0,
+              isLocked: !isUnlocked,
+            };
+          }
+          return {
+            ...lesson,
+            isCompleted,
+            stars: progressMap[lesson.id] || 0,
+          };
+        });
+        setLessons(updatedLessons);
+      } catch (error) {
+        console.error("Error fetching user progress:", error);
+      }
+    };
+
+    fetchUserProgress();
+  }, []);
 
   const handleLessonClick = (lesson: Lesson) => {
     if (!lesson.isLocked) {
@@ -80,6 +143,66 @@ const LearningContent = () => {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setSelectedLesson(null);
+  };
+
+  const updateLessonStars = async (
+    lessonId: number,
+    stars: number,
+    score: number,
+    timeSpent: number
+  ) => {
+    try {
+      const user = await account.get();
+
+      const existingProgress = await databases.listDocuments(
+        DATABASE_ID,
+        USER_PROGRESS_COLLECTION_ID,
+        [Query.equal("userId", [user.$id]), Query.equal("lessonId", [lessonId])]
+      );
+
+      const progressData = {
+        userId: user.$id,
+        lessonId: lessonId,
+        stars: stars,
+        score: score,
+        timeSpent: timeSpent,
+        isCompleted: true,
+        completedAt: new Date().toISOString(),
+      };
+
+      if (existingProgress.documents.length > 0) {
+        await databases.updateDocument(
+          DATABASE_ID,
+          USER_PROGRESS_COLLECTION_ID,
+          existingProgress.documents[0].$id,
+          progressData
+        );
+      } else {
+        await databases.createDocument(
+          DATABASE_ID,
+          USER_PROGRESS_COLLECTION_ID,
+          ID.unique(),
+          progressData
+        );
+      }
+
+      // Cập nhật state local
+      setLessonStars((prev) => ({
+        ...prev,
+        [lessonId]: stars,
+      }));
+
+      // Cập nhật lessons state
+      setLessons((prevLessons) =>
+        prevLessons.map((lesson) =>
+          lesson.id === lessonId
+            ? { ...lesson, isCompleted: true, stars: stars }
+            : lesson
+        )
+      );
+    } catch (error) {
+      console.error("Error updating progress:", error);
+    }
   };
 
   return (
@@ -142,7 +265,7 @@ const LearningContent = () => {
                     <Star
                       key={star}
                       className={`w-6 h-6 ${
-                        star <= lesson.stars
+                        star <= (lessonStars[lesson.id] || lesson.stars)
                           ? "fill-yellow-400 text-yellow-400"
                           : "text-gray-300"
                       }`}
@@ -163,24 +286,15 @@ const LearningContent = () => {
       </div>
 
       <Modal isOpen={isModalOpen} onClose={handleCloseModal}>
-        {selectedLesson && <LessonExercise />}
+        {selectedLesson && (
+          <LessonExercise
+            level={selectedLesson.title}
+            lessonId={selectedLesson.id}
+            onComplete={updateLessonStars}
+            onClose={() => setIsModalOpen(false)}
+          />
+        )}
       </Modal>
-
-      {/* Progress Footer */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t py-4 px-8">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-gray-600">Tiến độ khóa học</span>
-            <span className="font-medium">2/4 bài học</span>
-          </div>
-          <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-green-500 rounded-full transition-all duration-500"
-              style={{ width: "50%" }}
-            />
-          </div>
-        </div>
-      </div>
     </>
   );
 };
