@@ -36,3 +36,17 @@ export const useScheduleStore = create<ScheduleStore>((set) => ({
       }
     }),
 }));
+
+export interface Slide {
+
+  type: 'image' | 'video' | 'content';
+
+  title?: string;
+
+  content?: string;
+
+  imageUrl?: string;
+
+  videoUrl?: string;
+
+}

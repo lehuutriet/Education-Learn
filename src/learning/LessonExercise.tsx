@@ -488,7 +488,7 @@ const LessonExercise: React.FC<LessonExerciseProps> = ({
               isCorrect ? "bg-green-500 text-white" : "bg-red-500 text-white"
             }`}
           >
-            {isCorrect ? "Chính xác! 🎉" : "Sai rồi 😢"}
+            {isCorrect ? "Chính xác! 🎉" : "Đáp án sai 😢"}
           </div>
         </div>
       )}

@@ -15,6 +15,7 @@ import {
   Eye,
 } from "lucide-react";
 import { format } from "date-fns";
+import { Countdown } from "./Countdown"; // Create this component separately
 
 // Thêm type definitions cho kết quả parse từ Papaparse
 interface ParseResult {
@@ -34,6 +35,7 @@ interface Question {
   text: string;
   options: string[];
   correctAnswer: number;
+  image?: string; // Add image support
 }
 
 interface Exam extends Models.Document {
@@ -51,16 +53,16 @@ interface Exam extends Models.Document {
   maxScore: number;
 }
 
-// interface ExamSubmission extends Models.Document {
-//   examId: string;
-//   userId: string;
-//   userName: string;
-//   files: string[];
-//   answers?: { questionId: string; selectedOption: number }[];
-//   submittedAt: string;
-//   score?: number;
-//   feedback?: string;
-// }
+interface ExamSubmission extends Models.Document {
+  examId: string;
+  userId: string;
+  userName: string;
+  files: string[];
+  answers?: { questionId: string; selectedOption: number }[];
+  submittedAt: string;
+  score?: number;
+  feedback?: string;
+}
 
 const ExamManagement = ({ classroomId }: { classroomId: string }) => {
   const [exams, setExams] = useState<Exam[]>([]);
@@ -77,6 +79,10 @@ const ExamManagement = ({ classroomId }: { classroomId: string }) => {
     "multiple_choice"
   );
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [submissionCounts, setSubmissionCounts] = useState<{
+    [key: string]: number;
+  }>({});
+  const [isConfirmationOpen, setIsConfirmationOpen] = useState(false);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -140,6 +146,28 @@ const ExamManagement = ({ classroomId }: { classroomId: string }) => {
     }
   };
 
+  const fetchSubmissionCounts = async () => {
+    try {
+      const submissions = await databases.listDocuments(
+        DATABASE_ID,
+        "submissions_collection_id", // Replace with your actual collection ID
+        [Query.equal("classroomId", [classroomId])]
+      );
+
+      const counts: { [key: string]: number } = {};
+      (submissions.documents as ExamSubmission[]).forEach((sub) => {
+        counts[sub.examId] = (counts[sub.examId] || 0) + 1;
+      });
+      setSubmissionCounts(counts);
+    } catch (error) {
+      console.error("Error fetching submission counts:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchSubmissionCounts();
+  }, [exams]);
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
@@ -181,6 +209,22 @@ const ExamManagement = ({ classroomId }: { classroomId: string }) => {
       } else {
         setFiles(Array.from(e.target.files));
       }
+    }
+  };
+
+  const handleQuestionImageUpload = async (
+    questionIndex: number,
+    file: File
+  ) => {
+    try {
+      const uploaded = await storage.createFile(BUCKET_ID, ID.unique(), file);
+
+      const newQuestions = [...questions];
+      newQuestions[questionIndex].image = uploaded.$id;
+      setQuestions(newQuestions);
+    } catch (error) {
+      console.error("Error uploading image:", error);
+      setError("Không thể tải lên ảnh");
     }
   };
 
@@ -350,6 +394,29 @@ const ExamManagement = ({ classroomId }: { classroomId: string }) => {
                 </div>
               ))}
             </div>
+            <div className="mt-3">
+              <label className="block text-sm font-medium text-gray-700">
+                Ảnh minh họa
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    handleQuestionImageUpload(index, file);
+                  }
+                }}
+                className="mt-1"
+              />
+              {q.image && (
+                <img
+                  src={storage.getFileView(BUCKET_ID, q.image).toString()}
+                  alt="Question illustration"
+                  className="mt-2 max-h-40 object-contain"
+                />
+              )}
+            </div>
           </div>
         </div>
       ))}
@@ -371,6 +438,132 @@ const ExamManagement = ({ classroomId }: { classroomId: string }) => {
         <Plus className="w-4 h-4" />
         Thêm câu hỏi
       </button>
+    </div>
+  );
+
+  const ExamCard = ({ exam }: { exam: Exam }) => (
+    <div className="bg-white rounded-lg shadow-sm border p-6">
+      <div className="flex justify-between items-start mb-4">
+        <div>
+          <h3 className="font-medium text-lg text-gray-900">{exam.title}</h3>
+          <span
+            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+              exam.type === "multiple_choice"
+                ? "bg-purple-100 text-purple-800"
+                : "bg-blue-100 text-blue-800"
+            }`}
+          >
+            {exam.type === "multiple_choice" ? "Trắc nghiệm" : "Tự luận"}
+          </span>
+        </div>
+        <span
+          className={`px-2 py-1 rounded-full text-xs font-medium ${
+            exam.status === "published"
+              ? "bg-green-100 text-green-800"
+              : exam.status === "completed"
+              ? "bg-gray-100 text-gray-800"
+              : "bg-yellow-100 text-yellow-800"
+          }`}
+        >
+          {exam.status === "published"
+            ? "Đã công bố"
+            : exam.status === "completed"
+            ? "Đã kết thúc"
+            : "Bản nháp"}
+        </span>
+      </div>
+
+      <div className="space-y-2 mb-4">
+        <p className="text-sm text-gray-600">{exam.description}</p>
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          <Calendar className="w-4 h-4" />
+          <span>
+            Bắt đầu: {format(new Date(exam.startTime), "dd/MM/yyyy HH:mm")}
+          </span>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          <Clock className="w-4 h-4" />
+          <span>Thời gian: {exam.duration} phút</span>
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <Countdown
+          startTime={exam.startTime}
+          endTime={exam.endTime}
+          duration={exam.duration}
+        />
+      </div>
+
+      <div className="mt-2 flex items-center gap-2 text-sm text-gray-600">
+        <span className="font-medium">
+          Số bài nộp: {submissionCounts[exam.$id] || 0}
+        </span>
+      </div>
+
+      <div className="pt-4 border-t flex justify-between items-center">
+        <div className="flex gap-2">
+          {exam.type === "file_upload" &&
+            exam.attachments?.map((fileId, index) => (
+              <button
+                key={fileId}
+                onClick={() => handleViewFile(fileId)}
+                className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+              >
+                <Eye className="w-4 h-4" />
+                Xem file {index + 1}
+              </button>
+            ))}
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => handleViewSubmissions(exam)}
+            className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+          >
+            <Eye className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => handleDeleteExam(exam.$id)}
+            className="p-1 text-red-600 hover:bg-red-50 rounded"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Confirmation button */}
+      <button
+        onClick={() => setIsConfirmationOpen(true)}
+        className="mt-4 w-full py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+      >
+        Xác nhận
+      </button>
+
+      {/* Confirmation modal */}
+      {isConfirmationOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+          <div className="bg-white p-6 rounded-lg">
+            <h3 className="text-lg font-medium mb-4">Xác nhận nộp bài?</h3>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setIsConfirmationOpen(false)}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={() => {
+                  // Handle submission confirmation
+                  setIsConfirmationOpen(false);
+                }}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+              >
+                Xác nhận
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -413,90 +606,7 @@ const ExamManagement = ({ classroomId }: { classroomId: string }) => {
         {/* Exams Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {exams.map((exam) => (
-            <div
-              key={exam.$id}
-              className="bg-white rounded-lg shadow-sm border p-6"
-            >
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h3 className="font-medium text-lg text-gray-900">
-                    {exam.title}
-                  </h3>
-                  <span
-                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      exam.type === "multiple_choice"
-                        ? "bg-purple-100 text-purple-800"
-                        : "bg-blue-100 text-blue-800"
-                    }`}
-                  >
-                    {exam.type === "multiple_choice"
-                      ? "Trắc nghiệm"
-                      : "Tự luận"}
-                  </span>
-                </div>
-                // Tiếp tục phần return JSX
-                <span
-                  className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    exam.status === "published"
-                      ? "bg-green-100 text-green-800"
-                      : exam.status === "completed"
-                      ? "bg-gray-100 text-gray-800"
-                      : "bg-yellow-100 text-yellow-800"
-                  }`}
-                >
-                  {exam.status === "published"
-                    ? "Đã công bố"
-                    : exam.status === "completed"
-                    ? "Đã kết thúc"
-                    : "Bản nháp"}
-                </span>
-              </div>
-
-              <div className="space-y-2 mb-4">
-                <p className="text-sm text-gray-600">{exam.description}</p>
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Calendar className="w-4 h-4" />
-                  <span>
-                    Bắt đầu:{" "}
-                    {format(new Date(exam.startTime), "dd/MM/yyyy HH:mm")}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Clock className="w-4 h-4" />
-                  <span>Thời gian: {exam.duration} phút</span>
-                </div>
-              </div>
-
-              <div className="pt-4 border-t flex justify-between items-center">
-                <div className="flex gap-2">
-                  {exam.type === "file_upload" &&
-                    exam.attachments?.map((fileId, index) => (
-                      <button
-                        key={fileId}
-                        onClick={() => handleViewFile(fileId)}
-                        className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                      >
-                        <Eye className="w-4 h-4" />
-                        Xem file {index + 1}
-                      </button>
-                    ))}
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleViewSubmissions(exam)}
-                    className="p-1 text-blue-600 hover:bg-blue-50 rounded"
-                  >
-                    <Eye className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteExam(exam.$id)}
-                    className="p-1 text-red-600 hover:bg-red-50 rounded"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
+            <ExamCard key={exam.$id} exam={exam} />
           ))}
         </div>
 

@@ -19,24 +19,7 @@
                 ".npm"
             ],
             "path": "functions/User"
-        },
-        {
-            "$id": "6757b08826369e75eaaf",
-            "name": "exercise",
-            "runtime": "node-18.0",
-            "execute": [],
-            "events": [],
-            "schedule": "",
-            "timeout": 15,
-            "enabled": true,
-            "logging": true,
-            "entrypoint": "src/main.js",
-            "commands": "npm install",
-            "ignore": [
-                "node_modules",
-                ".npm"
-            ],
-            "path": "functions/exercise"
         }
+      
     ]
 }

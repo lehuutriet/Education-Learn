@@ -255,7 +255,7 @@ const LearningContent = () => {
                 {/* Level Requirement */}
                 {lesson.isLocked && (
                   <span className="text-sm text-gray-500 mb-2">
-                    Yêu cầu cấp độ {lesson.requiredLevel}
+                    Yêu cầu vượt qua {lesson.requiredLevel} cấp độ
                   </span>
                 )}
 

@@ -6,7 +6,7 @@ import ProtectedRoute from "./protectedRoute";
 import AdminPage from "../AdminPage";
 import PageNotFound from "./pageNotFound";
 import ExamManagement from "../Education/ExamManagement";
-import Exercise from "../Education/exercise";
+import Exercise from "../Management/exercise";
 
 import ClassroomPage from "../Classroom/ClassroomPage";
 import ClassroomManagement from "../Classroom/ClassroomManagement";

@@ -16,10 +16,11 @@ import {
 } from "lucide-react";
 import { ExecutionMethod } from "appwrite";
 import { useAuth } from "./contexts/auth/authProvider";
-import QuestionCreator from "./Education/QuestionCreator";
+import QuestionCreator from "./Management/QuestionCreator";
 import _ from "lodash";
+import LectureManagement from "./Management/LectureManagement";
 import { useNavigate } from "react-router-dom";
-import Exercise from "./Education/exercise";
+import Exercise from "./Management/exercise";
 interface User {
   id: string;
   name: string;
@@ -460,6 +461,16 @@ const AdminPage = () => {
             >
               Quản lý câu hỏi
             </button>
+            <button
+              onClick={() => setActiveTab("lecture")}
+              className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === "lecture"
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              Quản lý bài giảng
+            </button>
           </div>
         </div>
 
@@ -686,6 +697,7 @@ const AdminPage = () => {
         {/* File Management Content */}
         {activeTab === "files" && <Exercise />}
         {activeTab === "questions" && <QuestionCreator />}
+        {activeTab === "lecture" && <LectureManagement />}
         {/* User Modal */}
         {isModalOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
