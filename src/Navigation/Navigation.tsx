@@ -323,12 +323,17 @@ const Navigation = () => {
               >
                 Bài học
               </button>
-              <a
-                href="#"
-                className="block p-2 text-gray-700 hover:text-purple-600 transition-colors"
+              <button
+                onClick={() => {
+                  navigate("/exam");
+                  closeMobileMenu();
+                }}
+                className={`block w-full p-2 text-left transition-colors ${
+                  isActiveLink("story") ? "text-purple-600" : "text-gray-700"
+                }`}
               >
                 Đề thi
-              </a>
+              </button>
 
               <div className="pt-4 border-t border-gray-200">
                 <button

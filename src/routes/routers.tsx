@@ -71,7 +71,7 @@ export const Router = createBrowserRouter([
         path: "/exam",
         element: (
           <ProtectedRoute>
-            <ExamManagement classroomId="classroomid" />
+            <ExamManagement />
           </ProtectedRoute>
         ),
       },

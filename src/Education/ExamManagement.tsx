@@ -1,564 +1,285 @@
-import React, { useState, useEffect } from "react";
-import { useAuth } from "../contexts/auth/authProvider";
-import { ID, Models, Query } from "appwrite";
-import Papa from "papaparse";
-import Navigation from "../Navigation/Navigation";
+import { useState, useEffect } from "react";
 import {
   Plus,
   Search,
-  Calendar,
-  Clock,
   Trash2,
   AlertCircle,
   X,
+  Clock,
+  ChevronLeft,
+  ChevronRight,
   Upload,
-  Eye,
 } from "lucide-react";
-import { format } from "date-fns";
-import { Countdown } from "./Countdown"; // Create this component separately
+import { ID, Models, Query } from "appwrite";
+import { useAuth } from "../contexts/auth/authProvider";
+import { Countdown } from "./Countdown";
+import Navigation from "../Navigation/Navigation";
+import React from "react";
 
-// Thêm type definitions cho kết quả parse từ Papaparse
-interface ParseResult {
-  data: Array<Array<string>>;
-  errors: Array<any>;
-  meta: {
-    delimiter: string;
-    linebreak: string;
-    aborted: boolean;
-    truncated: boolean;
-    cursor: number;
-  };
+interface Question extends Models.Document {
+  type: "select" | "translate";
+  prompt: string;
+  options?: string[];
+  answer: string;
+  category: string;
+  createdBy: string;
+  imageId?: string;
+  bucketId?: string;
 }
 
-interface Question {
+interface Exam {
   id: string;
-  text: string;
-  options: string[];
-  correctAnswer: number;
-  image?: string; // Add image support
-}
-
-interface Exam extends Models.Document {
   title: string;
   description: string;
+  subject: string;
+  grade: string;
   type: "multiple_choice" | "file_upload";
   questions?: Question[];
   duration: number;
   startTime: string;
   endTime: string;
-  status: "draft" | "published" | "completed";
-  attachments: string[];
-  classroomId: string;
-  createdBy: string;
+
   maxScore: number;
 }
+interface Question extends Models.Document {
+  prompt: string;
+  options?: string[];
+  answer: string;
 
-interface ExamSubmission extends Models.Document {
-  examId: string;
-  userId: string;
-  userName: string;
-  files: string[];
-  answers?: { questionId: string; selectedOption: number }[];
-  submittedAt: string;
-  score?: number;
-  feedback?: string;
+  category: string;
+  createdBy: string;
+  imageId?: string;
+  bucketId?: string;
 }
 
-const ExamManagement = ({ classroomId }: { classroomId: string }) => {
-  const [exams, setExams] = useState<Exam[]>([]);
-  const [, setSelectedExam] = useState<Exam | null>(null);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [, setIsViewModalOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [files, setFiles] = useState<File[]>([]);
-  const [, setCurrentUserId] = useState("");
-  const [, setUserRole] = useState("");
-  const [examType, setExamType] = useState<"multiple_choice" | "file_upload">(
-    "multiple_choice"
-  );
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [submissionCounts, setSubmissionCounts] = useState<{
-    [key: string]: number;
-  }>({});
-  const [isConfirmationOpen, setIsConfirmationOpen] = useState(false);
+interface FormData {
+  title: string;
+  description: string;
+  subject: string;
+  grade: string;
+  type: "multiple_choice" | "file_upload";
+  duration: number;
+  startTime: string;
+  endTime: string;
+  maxScore: number;
+  prompt: string;
+  answer: string;
+  options: string[];
+  imageFile?: File | undefined; // Thêm optional chaining
+  imagePreview?: string | undefined; // Thêm optional chaining
+  numberOfQuestions: number; // Thêm trường này
+  currentQuestionIndex: number; // Thêm để theo dõi câu hỏi hiện tại
+  questions: Question[]; // Mảng lưu các câu hỏi
+}
+interface ExamInterfaceProps {
+  exam: Exam;
+  onClose: () => void;
+  onSubmit: (answers: string[]) => void;
+}
 
-  const [formData, setFormData] = useState({
-    title: "",
-    description: "",
-    duration: 60,
-    startTime: "",
-    endTime: "",
-    maxScore: 10,
-  });
-
-  const { databases, storage, account } = useAuth();
-
-  const DATABASE_ID = "674e5e7a0008e19d0ef0";
-  const EXAMS_COLLECTION_ID = "6760f266000f252ae278";
-  const BUCKET_ID = "67628e470015cec00d8b";
-
-  // Thêm function handler cho file view và submissions
-  const handleViewFile = async (fileId: string) => {
-    try {
-      const fileUrl = storage.getFileView(BUCKET_ID, fileId);
-      window.open(fileUrl.toString(), "_blank");
-    } catch (error) {
-      console.error("Error viewing file:", error);
-      setError("Không thể mở file");
-    }
-  };
-
-  const handleViewSubmissions = (exam: Exam) => {
-    setSelectedExam(exam);
-    setIsViewModalOpen(true);
-  };
-
-  useEffect(() => {
-    const getCurrentUser = async () => {
-      try {
-        const user = await account.get();
-        setCurrentUserId(user.$id);
-        setUserRole(user.labels?.[0] || "");
-      } catch (error) {
-        console.error("Error getting current user:", error);
-      }
-    };
-    getCurrentUser();
-    fetchExams();
-  }, []);
-
-  const fetchExams = async () => {
-    try {
-      setLoading(true);
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        EXAMS_COLLECTION_ID,
-        [Query.equal("classroomId", [classroomId])]
-      );
-      setExams(response.documents as Exam[]);
-    } catch (error) {
-      console.error("Error fetching exams:", error);
-      setError("Không thể tải danh sách đề thi");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchSubmissionCounts = async () => {
-    try {
-      const submissions = await databases.listDocuments(
-        DATABASE_ID,
-        "submissions_collection_id", // Replace with your actual collection ID
-        [Query.equal("classroomId", [classroomId])]
-      );
-
-      const counts: { [key: string]: number } = {};
-      (submissions.documents as ExamSubmission[]).forEach((sub) => {
-        counts[sub.examId] = (counts[sub.examId] || 0) + 1;
-      });
-      setSubmissionCounts(counts);
-    } catch (error) {
-      console.error("Error fetching submission counts:", error);
-    }
-  };
-
-  useEffect(() => {
-    fetchSubmissionCounts();
-  }, [exams]);
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-
-      if (file.type === "application/json") {
-        try {
-          const text = await file.text();
-          const json = JSON.parse(text);
-          if (Array.isArray(json)) {
-            const parsedQuestions = json.map((q, index) => ({
-              id: index.toString(),
-              text: q.question || "",
-              options: q.options || [],
-              correctAnswer: q.correctAnswer || 0,
-            }));
-            setQuestions(parsedQuestions);
-          }
-        } catch (error) {
-          console.error("Error parsing JSON:", error);
-          setError("Invalid JSON format");
-        }
-      } else if (file.type === "text/csv") {
-        Papa.parse(file, {
-          complete: (results: ParseResult) => {
-            const parsedQuestions = results.data.map((row, index) => ({
-              id: index.toString(),
-              text: row[0],
-              options: [row[1], row[2], row[3], row[4]],
-              correctAnswer: parseInt(row[5]) || 0,
-            }));
-            setQuestions(parsedQuestions);
-          },
-          header: false,
-          error: (error: Error) => {
-            console.error("CSV parsing error:", error);
-            setError("Không thể đọc file CSV");
-          },
-        });
-      } else {
-        setFiles(Array.from(e.target.files));
-      }
-    }
-  };
-
-  const handleQuestionImageUpload = async (
-    questionIndex: number,
-    file: File
-  ) => {
-    try {
-      const uploaded = await storage.createFile(BUCKET_ID, ID.unique(), file);
-
-      const newQuestions = [...questions];
-      newQuestions[questionIndex].image = uploaded.$id;
-      setQuestions(newQuestions);
-    } catch (error) {
-      console.error("Error uploading image:", error);
-      setError("Không thể tải lên ảnh");
-    }
-  };
-
-  const handleCreateExam = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validateForm()) return;
-
-    try {
-      setLoading(true);
-      const user = await account.get();
-
-      let examData: any = {
-        ...formData,
-        type: examType,
-        status: "draft",
-        classroomId,
-        createdBy: user.$id,
-      };
-
-      if (examType === "multiple_choice") {
-        examData.questions = questions;
-      } else {
-        // Upload files for file upload type
-        const fileIds = await Promise.all(
-          files.map(async (file) => {
-            const uploaded = await storage.createFile(
-              BUCKET_ID,
-              ID.unique(),
-              file
-            );
-            return uploaded.$id;
-          })
-        );
-        examData.attachments = fileIds;
-      }
-
-      await databases.createDocument(
-        DATABASE_ID,
-        EXAMS_COLLECTION_ID,
-        ID.unique(),
-        examData
-      );
-
-      await fetchExams();
-      setIsCreateModalOpen(false);
-      resetForm();
-    } catch (error) {
-      console.error("Error creating exam:", error);
-      setError("Không thể tạo đề thi");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDeleteExam = async (examId: string) => {
-    if (!window.confirm("Bạn có chắc chắn muốn xóa đề thi này?")) return;
-
-    try {
-      setLoading(true);
-      await databases.deleteDocument(DATABASE_ID, EXAMS_COLLECTION_ID, examId);
-      await fetchExams();
-    } catch (error) {
-      console.error("Error deleting exam:", error);
-      setError("Không thể xóa đề thi");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const validateForm = () => {
-    if (!formData.title || !formData.startTime || !formData.endTime) {
-      setError("Vui lòng điền đầy đủ thông tin bắt buộc");
-      return false;
-    }
-    if (examType === "multiple_choice" && questions.length === 0) {
-      setError("Vui lòng thêm ít nhất một câu hỏi");
-      return false;
-    }
-    return true;
-  };
-
-  const resetForm = () => {
-    setFormData({
-      title: "",
-      description: "",
-      duration: 60,
-      startTime: "",
-      endTime: "",
-      maxScore: 10,
-    });
-    setFiles([]);
-    setQuestions([]);
-    setError(null);
-  };
-
-  // Component for Question Form
-  const QuestionForm = () => (
-    <div className="space-y-4 mt-4">
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-medium">Câu hỏi trắc nghiệm</h3>
+const ExamInterface: React.FC<ExamInterfaceProps> = ({
+  exam,
+  onClose,
+  onSubmit,
+}) => {
+  if (!exam.questions || exam.questions.length === 0) {
+    return (
+      <div className="text-center p-8">
+        <p>Không có câu hỏi nào trong đề thi này</p>
         <button
-          onClick={() => {
-            const input = document.createElement("input");
-            input.type = "file";
-            input.accept = ".json,.csv";
-            input.onchange = (e) => handleFileChange(e as any);
-            input.click();
-          }}
-          className="px-4 py-2 text-blue-600 border border-blue-600 rounded hover:bg-blue-50"
+          onClick={onClose}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg mt-4"
         >
-          Import từ file
+          Quay lại
         </button>
       </div>
+    );
+  }
+  const [currentQuestion, setCurrentQuestion] = useState(0);
+  const [selectedAnswers, setSelectedAnswers] = useState<string[]>(
+    Array(exam.questions?.length || 0).fill("")
+  );
+  const [timeLeft] = useState(exam.duration * 60);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConfirmSubmit, setShowConfirmSubmit] = useState(false);
 
-      {questions.map((q, index) => (
-        <div key={q.id} className="p-4 border rounded-lg bg-white shadow-sm">
-          <div className="flex justify-between items-center mb-3">
-            <h4 className="font-medium">Câu hỏi {index + 1}</h4>
-            <button
-              onClick={() => {
-                setQuestions(questions.filter((que) => que.id !== q.id));
-              }}
-              className="text-red-500 hover:bg-red-50 p-1 rounded"
-            >
-              <X className="w-4 h-4" />
-            </button>
+  useEffect(() => {
+    if (timeLeft <= 0) {
+      handleSubmit();
+    }
+  }, [timeLeft]);
+
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+    try {
+      await onSubmit(selectedAnswers);
+      onClose();
+    } catch (error) {
+      console.error("Error submitting exam:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-gray-50">
+      {/* Header */}
+      <Navigation />
+      <div className="bg-white shadow-sm border-b px-6 py-4">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">{exam.title}</h1>
+            <div className="flex gap-4 mt-1 text-sm text-gray-600">
+              <span>{exam.subject}</span>
+              <span>{exam.grade}</span>
+            </div>
           </div>
-
-          <div className="space-y-3">
-            <input
-              type="text"
-              value={q.text}
-              onChange={(e) => {
-                const newQuestions = [...questions];
-                newQuestions[index].text = e.target.value;
-                setQuestions(newQuestions);
-              }}
-              className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-              placeholder="Nhập câu hỏi"
+          <div className="flex items-center gap-6">
+            <Countdown
+              startTime={exam.startTime}
+              endTime={exam.endTime}
+              duration={exam.duration}
             />
+          </div>
+        </div>
+      </div>
 
-            <div className="space-y-2">
-              {q.options.map((opt, optIndex) => (
-                <div key={optIndex} className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name={`question-${q.id}`}
-                    checked={q.correctAnswer === optIndex}
-                    onChange={() => {
-                      const newQuestions = [...questions];
-                      newQuestions[index].correctAnswer = optIndex;
-                      setQuestions(newQuestions);
+      {/* Main Content */}
+      <div className="max-w-3xl mx-auto p-6">
+        <div className="bg-white rounded-lg shadow-sm p-8">
+          {exam.questions && (
+            <>
+              <div className="text-2xl mb-8">
+                {exam.questions[currentQuestion].prompt}
+              </div>
+
+              <div className="space-y-4">
+                {exam.questions[currentQuestion].options?.map((option, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => {
+                      const newAnswers = [...selectedAnswers];
+                      newAnswers[currentQuestion] = option;
+                      setSelectedAnswers(newAnswers);
                     }}
-                    className="w-4 h-4 text-blue-600"
-                  />
-                  <input
-                    type="text"
-                    value={opt}
-                    onChange={(e) => {
-                      const newQuestions = [...questions];
-                      newQuestions[index].options[optIndex] = e.target.value;
-                      setQuestions(newQuestions);
-                    }}
-                    className="flex-1 p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder={`Đáp án ${optIndex + 1}`}
-                  />
-                </div>
+                    className={`w-full p-4 text-left rounded-lg border-2 transition
+                      ${
+                        selectedAnswers[currentQuestion] === option
+                          ? "border-blue-500 bg-blue-50"
+                          : "border-gray-200 hover:border-gray-300"
+                      }
+                    `}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-6 h-6 rounded-full border-2 ${
+                          selectedAnswers[currentQuestion] === option
+                            ? "border-blue-500 bg-blue-500"
+                            : "border-gray-300"
+                        }`}
+                      >
+                        {selectedAnswers[currentQuestion] === option && (
+                          <div className="w-full h-full rounded-full bg-white scale-50" />
+                        )}
+                      </div>
+                      {option}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Bottom Navigation */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex gap-4">
+              <button
+                onClick={() =>
+                  setCurrentQuestion((prev) => Math.max(0, prev - 1))
+                }
+                disabled={currentQuestion === 0}
+                className="px-4 py-2 text-gray-600 disabled:opacity-50"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() =>
+                  setCurrentQuestion((prev) =>
+                    Math.min((exam.questions?.length || 1) - 1, prev + 1)
+                  )
+                }
+                disabled={currentQuestion === (exam.questions?.length || 1) - 1}
+                className="px-4 py-2 text-gray-600 disabled:opacity-50"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex gap-2">
+              {exam.questions?.map((_, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setCurrentQuestion(idx)}
+                  className={`w-8 h-8 rounded-full text-sm font-medium
+                    ${
+                      selectedAnswers[idx]
+                        ? "bg-green-500 text-white"
+                        : "bg-gray-200 text-gray-600"
+                    }
+                    ${
+                      currentQuestion === idx
+                        ? "ring-2 ring-blue-500 ring-offset-2"
+                        : ""
+                    }
+                  `}
+                >
+                  {idx + 1}
+                </button>
               ))}
             </div>
-            <div className="mt-3">
-              <label className="block text-sm font-medium text-gray-700">
-                Ảnh minh họa
-              </label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    handleQuestionImageUpload(index, file);
-                  }
-                }}
-                className="mt-1"
+            <div className="flex items-center gap-6">
+              <Countdown
+                startTime={exam.startTime}
+                endTime={exam.endTime}
+                duration={exam.duration}
               />
-              {q.image && (
-                <img
-                  src={storage.getFileView(BUCKET_ID, q.image).toString()}
-                  alt="Question illustration"
-                  className="mt-2 max-h-40 object-contain"
-                />
-              )}
             </div>
+            <button
+              onClick={() => setShowConfirmSubmit(true)}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              Nộp bài
+            </button>
           </div>
         </div>
-      ))}
-
-      <button
-        onClick={() => {
-          setQuestions([
-            ...questions,
-            {
-              id: Date.now().toString(),
-              text: "",
-              options: ["", "", "", ""],
-              correctAnswer: 0,
-            },
-          ]);
-        }}
-        className="w-full py-2 flex items-center justify-center gap-2 text-blue-600 border border-dashed border-blue-300 rounded-lg hover:bg-blue-50"
-      >
-        <Plus className="w-4 h-4" />
-        Thêm câu hỏi
-      </button>
-    </div>
-  );
-
-  const ExamCard = ({ exam }: { exam: Exam }) => (
-    <div className="bg-white rounded-lg shadow-sm border p-6">
-      <div className="flex justify-between items-start mb-4">
-        <div>
-          <h3 className="font-medium text-lg text-gray-900">{exam.title}</h3>
-          <span
-            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-              exam.type === "multiple_choice"
-                ? "bg-purple-100 text-purple-800"
-                : "bg-blue-100 text-blue-800"
-            }`}
-          >
-            {exam.type === "multiple_choice" ? "Trắc nghiệm" : "Tự luận"}
-          </span>
-        </div>
-        <span
-          className={`px-2 py-1 rounded-full text-xs font-medium ${
-            exam.status === "published"
-              ? "bg-green-100 text-green-800"
-              : exam.status === "completed"
-              ? "bg-gray-100 text-gray-800"
-              : "bg-yellow-100 text-yellow-800"
-          }`}
-        >
-          {exam.status === "published"
-            ? "Đã công bố"
-            : exam.status === "completed"
-            ? "Đã kết thúc"
-            : "Bản nháp"}
-        </span>
       </div>
 
-      <div className="space-y-2 mb-4">
-        <p className="text-sm text-gray-600">{exam.description}</p>
-        <div className="flex items-center gap-2 text-sm text-gray-600">
-          <Calendar className="w-4 h-4" />
-          <span>
-            Bắt đầu: {format(new Date(exam.startTime), "dd/MM/yyyy HH:mm")}
-          </span>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-gray-600">
-          <Clock className="w-4 h-4" />
-          <span>Thời gian: {exam.duration} phút</span>
-        </div>
-      </div>
-
-      <div className="mt-4">
-        <Countdown
-          startTime={exam.startTime}
-          endTime={exam.endTime}
-          duration={exam.duration}
-        />
-      </div>
-
-      <div className="mt-2 flex items-center gap-2 text-sm text-gray-600">
-        <span className="font-medium">
-          Số bài nộp: {submissionCounts[exam.$id] || 0}
-        </span>
-      </div>
-
-      <div className="pt-4 border-t flex justify-between items-center">
-        <div className="flex gap-2">
-          {exam.type === "file_upload" &&
-            exam.attachments?.map((fileId, index) => (
+      {/* Submit Confirmation Modal */}
+      {showConfirmSubmit && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full">
+            <h3 className="text-lg font-medium mb-4">Xác nhận nộp bài</h3>
+            <p className="text-gray-600 mb-6">
+              Bạn đã trả lời {selectedAnswers.filter(Boolean).length}/
+              {exam.questions?.length} câu hỏi. Bạn có chắc chắn muốn nộp bài?
+            </p>
+            <div className="flex justify-end gap-4">
               <button
-                key={fileId}
-                onClick={() => handleViewFile(fileId)}
-                className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
-              >
-                <Eye className="w-4 h-4" />
-                Xem file {index + 1}
-              </button>
-            ))}
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => handleViewSubmissions(exam)}
-            className="p-1 text-blue-600 hover:bg-blue-50 rounded"
-          >
-            <Eye className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => handleDeleteExam(exam.$id)}
-            className="p-1 text-red-600 hover:bg-red-50 rounded"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* Confirmation button */}
-      <button
-        onClick={() => setIsConfirmationOpen(true)}
-        className="mt-4 w-full py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-      >
-        Xác nhận
-      </button>
-
-      {/* Confirmation modal */}
-      {isConfirmationOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-          <div className="bg-white p-6 rounded-lg">
-            <h3 className="text-lg font-medium mb-4">Xác nhận nộp bài?</h3>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setIsConfirmationOpen(false)}
-                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                onClick={() => setShowConfirmSubmit(false)}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg"
               >
                 Hủy
               </button>
               <button
-                onClick={() => {
-                  // Handle submission confirmation
-                  setIsConfirmationOpen(false);
-                }}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg"
               >
-                Xác nhận
+                {isSubmitting ? "Đang nộp..." : "Xác nhận nộp bài"}
               </button>
             </div>
           </div>
@@ -566,23 +287,318 @@ const ExamManagement = ({ classroomId }: { classroomId: string }) => {
       )}
     </div>
   );
+};
+
+const ExamManagement: React.FC = () => {
+  const [exams, setExams] = useState<Exam[]>([]);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isExamMode, setIsExamMode] = useState(false);
+  const [selectedExam, setSelectedExam] = useState<Exam | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading] = useState(false);
+  const { databases, account, storage } = useAuth();
+
+  const [loading, setLoading] = useState(false);
+
+  const [formData, setFormData] = useState<FormData>({
+    title: "",
+    description: "",
+    subject: "",
+    grade: "",
+    type: "multiple_choice" as const,
+    duration: 60,
+    startTime: "",
+    endTime: "",
+    maxScore: 10,
+    prompt: "",
+    answer: "",
+    options: ["", "", "", ""],
+    imageFile: undefined,
+    imagePreview: undefined,
+    numberOfQuestions: 1, // Thêm giá trị mặc định
+    currentQuestionIndex: 0, // Thêm giá trị mặc định
+    questions: [], // Thêm mảng rỗng cho questions
+  });
+
+  const DATABASE_ID = "674e5e7a0008e19d0ef0";
+  const EXAMS_COLLECTION_ID = "676e1f7300177eef75be";
+  const BUCKET_questionsImageforExam = "676e2b060006efae803e";
+  const QUESTIONS_COLLECTION_ID = "676e2bbc000befb2f52d";
+
+  // Thêm state quản lý preview ảnh
+  const [optionPreviews, setOptionPreviews] = useState<string[]>([]);
+
+  // Handler upload ảnh cho option
+  const handleOptionImageUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    index: number
+  ) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const preview = URL.createObjectURL(file);
+      const newPreviews = [...optionPreviews];
+      newPreviews[index] = preview;
+      setOptionPreviews(newPreviews);
+
+      // Upload và lưu file
+      // ...
+    }
+  };
+
+  // Xóa ảnh option
+  const removeOptionImage = (index: number) => {
+    const newPreviews = [...optionPreviews];
+    URL.revokeObjectURL(newPreviews[index]);
+    newPreviews[index] = "";
+    setOptionPreviews(newPreviews);
+  };
+  useEffect(() => {
+    fetchExams();
+  }, []);
+
+  const fetchExams = async () => {
+    try {
+      const response = await databases.listDocuments(
+        DATABASE_ID,
+        EXAMS_COLLECTION_ID
+      );
+
+      // Fetch questions cho mỗi exam
+      const examsWithQuestions = await Promise.all(
+        response.documents.map(async (exam) => {
+          const questionsResponse = await databases.listDocuments(
+            DATABASE_ID,
+            QUESTIONS_COLLECTION_ID,
+            [Query.equal("examId", [exam.$id])]
+          );
+          return {
+            id: exam.$id,
+            title: exam.title,
+            description: exam.description,
+            subject: exam.subject,
+            grade: exam.grade,
+            type: exam.type,
+            questions: questionsResponse.documents,
+            duration: exam.duration,
+            startTime: exam.startTime,
+            endTime: exam.endTime,
+            maxScore: exam.maxScore,
+          } as Exam;
+        })
+      );
+
+      setExams(examsWithQuestions);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        setError("Kích thước ảnh không được vượt quá 5MB");
+        return;
+      }
+
+      if (!file.type.startsWith("image/")) {
+        setError("Vui lòng chọn file ảnh hợp lệ");
+        return;
+      }
+
+      setFormData({
+        ...formData,
+        imageFile: file,
+        imagePreview: URL.createObjectURL(file),
+      });
+    }
+  };
+  const handleCloseModal = () => {
+    setIsCreateModalOpen(false);
+    resetForm();
+  };
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (formData.currentQuestionIndex < formData.numberOfQuestions - 1) {
+      // Lưu câu hỏi hiện tại vào mảng
+      const currentQuestion: Question = {
+        type: "select",
+        prompt: formData.prompt,
+        options: formData.options,
+        answer: formData.answer,
+        category: formData.subject,
+        createdBy: "", // Will be set when saving to database
+        $id: ID.unique(),
+        $collectionId: QUESTIONS_COLLECTION_ID,
+        $databaseId: DATABASE_ID,
+        $createdAt: new Date().toISOString(),
+        $updatedAt: new Date().toISOString(),
+        $permissions: [],
+      };
+
+      const newQuestions = [...formData.questions];
+      newQuestions[formData.currentQuestionIndex] = currentQuestion;
+
+      // Reset form cho câu tiếp theo
+      setFormData({
+        ...formData,
+        questions: newQuestions,
+        currentQuestionIndex: formData.currentQuestionIndex + 1,
+        prompt: "",
+        options: ["", "", "", ""],
+        answer: "",
+        // Reset các trường liên quan đến câu hỏi
+      });
+      return;
+    }
+    try {
+      setLoading(true);
+      const user = await account.get();
+      let imageId = null;
+      let bucketId = null;
+      if (formData.imageFile) {
+        const uploadedFile = await storage.createFile(
+          BUCKET_questionsImageforExam,
+          ID.unique(),
+          formData.imageFile
+        );
+        imageId = uploadedFile.$id;
+        bucketId = BUCKET_questionsImageforExam;
+      }
+
+      // Tạo question document
+      const questionData = {
+        type: "select",
+        prompt: formData.prompt,
+        options: formData.options.filter((opt) => opt), // Lọc bỏ options rỗng
+        answer: formData.answer,
+        category: formData.subject, // Dùng subject làm category
+        createdBy: user.$id, // Thêm ID người tạo
+        imageId,
+        bucketId,
+      };
+
+      // Tạo exam document
+      const examData = {
+        title: formData.title,
+        description: formData.description,
+        subject: formData.subject,
+        grade: formData.grade,
+        type: formData.type,
+        duration: formData.duration,
+        startTime: formData.startTime,
+        endTime: formData.endTime,
+        maxScore: formData.maxScore,
+      };
+
+      // Lưu exam trước
+      const exam = await databases.createDocument(
+        DATABASE_ID,
+        EXAMS_COLLECTION_ID,
+        ID.unique(),
+        examData
+      );
+
+      // Sau đó lưu question và liên kết với exam
+      await databases.createDocument(
+        DATABASE_ID,
+        QUESTIONS_COLLECTION_ID,
+        ID.unique(),
+        {
+          ...questionData,
+          examId: exam.$id, // Liên kết question với exam
+        }
+      );
+
+      setExams((prev) => [...prev, exam as unknown as Exam]);
+      setIsCreateModalOpen(false);
+      resetForm();
+    } catch (error: any) {
+      setError(error.message || "Không thể tạo đề thi");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      title: "",
+      description: "",
+      subject: "",
+      grade: "",
+      type: "multiple_choice",
+      duration: 60,
+      startTime: "",
+      endTime: "",
+      maxScore: 10,
+      prompt: "",
+      answer: "",
+      options: ["", "", "", ""],
+      imageFile: undefined,
+      imagePreview: undefined,
+      numberOfQuestions: 1,
+      currentQuestionIndex: 0,
+      questions: [],
+    });
+    setError(null);
+  };
+
+  const handleDeleteExam = async (examId: string) => {
+    if (!window.confirm("Bạn có chắc chắn muốn xóa đề thi này?")) return;
+
+    try {
+      await databases.deleteDocument(DATABASE_ID, EXAMS_COLLECTION_ID, examId);
+      setExams((prev) => prev.filter((exam) => exam.id !== examId));
+    } catch (error) {
+      console.error("Error deleting exam:", error);
+      setError("Không thể xóa đề thi");
+    }
+  };
+
+  const startExam = (exam: Exam) => {
+    setSelectedExam(exam);
+    setIsExamMode(true);
+  };
+
+  const handleExamSubmit = async (answers: string[]) => {
+    // Handle exam submission logic here
+    console.log("Submitted answers:", answers);
+  };
+
+  const filteredExams = exams.filter(
+    (exam) =>
+      exam.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      exam.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      exam.grade.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  if (isExamMode && selectedExam) {
+    return (
+      <ExamInterface
+        exam={selectedExam}
+        onClose={() => setIsExamMode(false)}
+        onSubmit={handleExamSubmit}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Header */}
       <Navigation />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Quản lý đề thi</h1>
-          <p className="mt-2 text-gray-600">
-            Tạo và quản lý các đề thi trong lớp học
-          </p>
-        </div>
 
-        {/* Actions */}
-        <div className="mb-6 flex justify-between items-center">
-          <div className="w-full max-w-xs">
-            <div className="relative">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900">Quản lý đề thi</h1>
+        <p className="text-gray-600 mt-2">
+          Tạo và quản lý các đề thi trong hệ thống
+        </p>
+      </div>
+
+      {/* Actions */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="flex-1 relative">
               <input
                 type="text"
                 placeholder="Tìm kiếm đề thi..."
@@ -592,185 +608,396 @@ const ExamManagement = ({ classroomId }: { classroomId: string }) => {
               />
               <Search className="absolute left-3 top-2.5 text-gray-400 w-5 h-5" />
             </div>
+
+            <button
+              onClick={() => setIsCreateModalOpen(true)}
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+            >
+              <Plus className="w-4 h-4" />
+              Tạo đề thi mới
+            </button>
           </div>
-
-          <button
-            onClick={() => setIsCreateModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            <Plus className="w-4 h-4" />
-            Tạo đề thi mới
-          </button>
         </div>
 
-        {/* Exams Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {exams.map((exam) => (
-            <ExamCard key={exam.$id} exam={exam} />
-          ))}
-        </div>
-
-        {/* Create Modal */}
-        {isCreateModalOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-            <div className="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold">Tạo đề thi mới</h2>
-                <button
-                  onClick={() => {
-                    setIsCreateModalOpen(false);
-                    resetForm();
-                  }}
-                  className="text-gray-400 hover:text-gray-600"
+        {/* Exams List */}
+        <div className="p-6">
+          {isLoading ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+          ) : filteredExams.length === 0 ? (
+            <div className="text-center py-12">
+              <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Chưa có đề thi nào
+              </h3>
+              <p className="text-gray-500">
+                Bắt đầu bằng cách tạo đề thi đầu tiên
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredExams.map((exam) => (
+                <div
+                  key={exam.id}
+                  className="bg-white rounded-lg shadow overflow-hidden border"
                 >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
+                  <div className="p-6">
+                    <h3 className="font-medium text-lg mb-2">{exam.title}</h3>
+                    <div className="flex items-center text-sm text-gray-500 mb-4">
+                      <span className="mr-4 text-sm px-2 py-1 rounded-full bg-green-100">
+                        {exam.subject}
+                      </span>
+                      <span className="mr-4 text-sm px-2 py-1 rounded-full bg-blue-100">
+                        {exam.grade}
+                      </span>
+                    </div>
 
-              {error && (
-                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
-                  <AlertCircle className="w-5 h-5 text-red-600" />
-                  <p className="text-red-600">{error}</p>
-                </div>
-              )}
+                    <p className="text-sm text-gray-600 mb-4 line-clamp-2">
+                      {exam.description}
+                    </p>
 
-              <form onSubmit={handleCreateExam} className="space-y-6">
-                {/* Chọn loại đề thi */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Loại đề thi
-                  </label>
-                  <select
-                    value={examType}
-                    onChange={(e) =>
-                      setExamType(
-                        e.target.value as "multiple_choice" | "file_upload"
-                      )
-                    }
-                    className="w-full p-2 border rounded-lg"
-                  >
-                    <option value="multiple_choice">Trắc nghiệm</option>
-                    <option value="file_upload">Tự luận (nộp file)</option>
-                  </select>
-                </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-sm text-gray-500">
+                        <Clock className="w-4 h-4" />
+                        <span>{exam.duration} phút</span>
+                      </div>
 
-                {/* Thông tin cơ bản */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Tiêu đề <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.title}
-                    onChange={(e) =>
-                      setFormData({ ...formData, title: e.target.value })
-                    }
-                    className="w-full p-2 border rounded-lg"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Mô tả
-                  </label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) =>
-                      setFormData({ ...formData, description: e.target.value })
-                    }
-                    className="w-full p-2 border rounded-lg"
-                    rows={3}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Thời gian bắt đầu <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={formData.startTime}
-                      onChange={(e) =>
-                        setFormData({ ...formData, startTime: e.target.value })
-                      }
-                      className="w-full p-2 border rounded-lg"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Thời gian kết thúc <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={formData.endTime}
-                      onChange={(e) =>
-                        setFormData({ ...formData, endTime: e.target.value })
-                      }
-                      className="w-full p-2 border rounded-lg"
-                      required
-                    />
-                  </div>
-                </div>
-
-                {/* Form trắc nghiệm hoặc upload file */}
-                {examType === "multiple_choice" ? (
-                  <QuestionForm />
-                ) : (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Tệp đính kèm
-                    </label>
-                    <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-lg">
-                      <div className="space-y-1 text-center">
-                        <Upload className="mx-auto h-12 w-12 text-gray-400" />
-                        <div className="flex text-sm text-gray-600">
-                          <label className="relative cursor-pointer rounded-md font-medium text-blue-600 hover:text-blue-500">
-                            <span>Upload a file</span>
-                            <input
-                              type="file"
-                              className="sr-only"
-                              onChange={handleFileChange}
-                              multiple
-                            />
-                          </label>
-                          <p className="pl-1">or drag and drop</p>
-                        </div>
-                        <p className="text-xs text-gray-500">
-                          PDF, DOCX up to 10MB
-                        </p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => startExam(exam)}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                        >
+                          Làm bài
+                        </button>
+                        <button
+                          onClick={() => handleDeleteExam(exam.id)}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
                   </div>
-                )}
-
-                <div className="flex justify-end gap-3 pt-6">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsCreateModalOpen(false);
-                      resetForm();
-                    }}
-                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
-                  >
-                    Hủy
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    {loading ? "Đang tạo..." : "Tạo đề thi"}
-                  </button>
                 </div>
-              </form>
+              ))}
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
+
+      {/* Create Modal */}
+      {isCreateModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold">Tạo đề thi</h2>
+              <h2 className="text-2xl font-bold">
+                Câu hỏi {formData.currentQuestionIndex + 1}/
+                {formData.numberOfQuestions}
+              </h2>
+              <button
+                onClick={handleCloseModal}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-red-600" />
+                <p className="text-red-600">{error}</p>
+              </div>
+            )}
+
+            <form
+              onSubmit={handleSubmit}
+              className="bg-white rounded-lg shadow-sm"
+            >
+              <div className="p-6 space-y-8">
+                {/* Thông tin cơ bản */}
+                <div className="bg-gray-50 p-6 rounded-lg">
+                  <h3 className="text-lg font-medium text-gray-900 mb-6">
+                    Thông tin cơ bản
+                  </h3>
+                  <div className="grid grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Loại câu hỏi
+                      </label>
+                      <select
+                        value={formData.type}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            type: e.target.value as
+                              | "multiple_choice"
+                              | "file_upload",
+                          })
+                        }
+                        className="w-full p-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        <option value="multiple_choice">Trắc nghiệm</option>
+                        <option value="file_upload">Dịch</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Tiêu đề
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.title}
+                        onChange={(e) =>
+                          setFormData({ ...formData, title: e.target.value })
+                        }
+                        className="w-full p-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Mô tả
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.description}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            description: e.target.value,
+                          })
+                        }
+                        className="w-full p-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Số câu hỏi
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={formData.numberOfQuestions}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            numberOfQuestions: parseInt(e.target.value),
+                          })
+                        }
+                        className="w-full p-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Câu hỏi
+                    </label>
+                    <div className="flex gap-4">
+                      <input
+                        type="text"
+                        value={formData.prompt}
+                        onChange={(e) =>
+                          setFormData({ ...formData, prompt: e.target.value })
+                        }
+                        className="flex-1 p-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Nhập nội dung câu hỏi..."
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          document.getElementById("image-upload")?.click()
+                        }
+                        className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg flex items-center gap-2"
+                      >
+                        <Upload className="w-4 h-4" />
+                        Thêm ảnh
+                      </button>
+                      <input
+                        id="image-upload"
+                        type="file"
+                        className="hidden"
+                        onChange={handleImageUpload}
+                        accept="image/*"
+                      />
+                    </div>
+                    {formData.imagePreview && (
+                      <div className="mt-4 relative inline-block">
+                        <img
+                          src={formData.imagePreview}
+                          alt="Preview"
+                          className="h-32 w-auto rounded-lg"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            URL.revokeObjectURL(formData.imagePreview!);
+                            setFormData({
+                              ...formData,
+                              imageFile: undefined,
+                              imagePreview: undefined,
+                            });
+                          }}
+                          className="absolute -top-2 -right-2 p-1 bg-red-100 rounded-full hover:bg-red-200"
+                        >
+                          <X className="w-4 h-4 text-red-600" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Thời gian */}
+                <div className="bg-gray-50 p-6 rounded-lg">
+                  <h3 className="text-lg font-medium text-gray-900 mb-6">
+                    Cài đặt thời gian
+                  </h3>
+                  <div className="grid grid-cols-3 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Thời gian làm bài (phút)
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={formData.duration}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            duration: parseInt(e.target.value),
+                          })
+                        }
+                        className="w-full p-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Phần đáp án */}
+                {formData.type === "multiple_choice" && (
+                  <div className="bg-gray-50 p-6 rounded-lg">
+                    <h3 className="text-lg font-medium text-gray-900 mb-6">
+                      Đáp án
+                    </h3>
+                    <div className="grid grid-cols-2 gap-6">
+                      {formData.options.map((option, index) => (
+                        <div
+                          key={index}
+                          onClick={() =>
+                            setFormData({ ...formData, answer: option })
+                          }
+                          className={`p-4 rounded-lg transition-all ${
+                            formData.answer === option
+                              ? "bg-blue-50 border-2 border-blue-500"
+                              : "bg-white border border-gray-300"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 mb-4">
+                            <div
+                              className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                                formData.answer === option
+                                  ? "border-blue-500"
+                                  : "border-gray-300"
+                              }`}
+                            >
+                              {formData.answer === option && (
+                                <div className="w-3 h-3 rounded-full bg-blue-500" />
+                              )}
+                            </div>
+                            <span className="text-sm font-medium text-gray-700">
+                              Đáp án {index + 1}
+                            </span>
+                          </div>
+
+                          <input
+                            type="text"
+                            value={option}
+                            onChange={(e) => {
+                              const newOptions = [...formData.options];
+                              newOptions[index] = e.target.value;
+                              setFormData({ ...formData, options: newOptions });
+                            }}
+                            className="w-full p-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="Nhập nội dung đáp án..."
+                          />
+
+                          {optionPreviews[index] ? (
+                            <div className="mt-4 relative">
+                              <img
+                                src={optionPreviews[index]}
+                                className="w-full h-32 object-cover rounded-lg"
+                                alt={`Option ${index + 1}`}
+                              />
+                              <button
+                                onClick={() => removeOptionImage(index)}
+                                className="absolute top-2 right-2 p-1 bg-white rounded-full shadow-lg"
+                              >
+                                <X className="w-4 h-4 text-gray-600" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                document
+                                  .getElementById(`option-image-${index}`)
+                                  ?.click()
+                              }
+                              className="mt-4 w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg flex items-center justify-center gap-2"
+                            >
+                              <Upload className="w-4 h-4" />
+                              Thêm ảnh cho đáp án
+                            </button>
+                          )}
+                          <input
+                            id={`option-image-${index}`}
+                            type="file"
+                            className="hidden"
+                            accept="image/*"
+                            onChange={(e) => handleOptionImageUpload(e, index)}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-4">
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium flex items-center gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                      <span>Đang xử lý...</span>
+                    </>
+                  ) : formData.currentQuestionIndex <
+                    formData.numberOfQuestions - 1 ? (
+                    "Câu hỏi tiếp theo"
+                  ) : (
+                    "Tạo đề thi"
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
