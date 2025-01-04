@@ -19,6 +19,7 @@ import { format, isPast } from "date-fns";
 import SubmissionModal from "./SubmissionModal";
 import CreateAssignmentModal from "./CreateAssignmentModal";
 import SubmissionViewer from "./SubmissionViewer";
+import { useClassroomStore } from "../stores/classroomStore";
 interface Assignment extends Models.Document {
   title: string;
   description: string;
@@ -91,6 +92,7 @@ const Assignments: React.FC<AssignmentsProps> = ({ classroomId }) => {
     description: "",
     dueDate: "",
   });
+  const { refreshAssignments } = useClassroomStore();
   const handleOpenSubmitModal = (assignment: Assignment) => {
     setSelectedAssignment(assignment);
     setIsSubmitModalOpen(true);
@@ -316,6 +318,10 @@ const Assignments: React.FC<AssignmentsProps> = ({ classroomId }) => {
       updateAssignmentsCache(updatedAssignments);
       setIsCreateModalOpen(false);
       resetForm();
+      await refreshAssignments({
+        classroomId: classroomId,
+        databases: databases,
+      });
     } catch (error) {
       console.error("Error creating assignment:", error);
       setError("Không thể tạo bài tập. Vui lòng thử lại.");
@@ -379,6 +385,10 @@ const Assignments: React.FC<AssignmentsProps> = ({ classroomId }) => {
         (assignment) => assignment.$id !== assignmentId
       );
       updateAssignmentsCache(updatedAssignments);
+      await refreshAssignments({
+        classroomId: classroomId,
+        databases: databases,
+      });
     } catch (error) {
       console.error("Error deleting assignment:", error);
       setError("Không thể xóa bài tập. Vui lòng thử lại.");

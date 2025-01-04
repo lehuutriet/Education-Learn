@@ -4,6 +4,7 @@ import { Client, Models, RealtimeResponseEvent, Query } from "appwrite";
 import { useAuth } from "../contexts/auth/authProvider";
 import { debounce } from "lodash";
 import { useDataCache } from "../contexts/auth/DataCacheProvider";
+import { useClassroomStore } from "../stores/classroomStore";
 interface Message extends Models.Document {
   $id: string;
   $createdAt: string;
@@ -23,18 +24,18 @@ interface ChatProps {
 }
 
 const ClassroomChat: React.FC<ChatProps> = ({ classroomId }) => {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { account, databases } = useAuth();
+  const { account, databases, client } = useAuth();
   const [currentUser, setCurrentUser] =
     useState<Models.User<Models.Preferences> | null>(null);
   const { getCachedData, setCachedData, isDataCached } = useDataCache();
-
+  const { messages, refreshMessages, addMessage } = useClassroomStore();
   const CACHE_KEY = `chat-messages-${classroomId}`;
   const CACHE_DURATION = 2 * 60 * 1000; // 2 minutes - shorter duration for chat
   const DATABASE_ID = "674e5e7a0008e19d0ef0";
@@ -53,14 +54,30 @@ const ClassroomChat: React.FC<ChatProps> = ({ classroomId }) => {
   }, [account]);
 
   useEffect(() => {
+    refreshMessages({ classroomId, databases });
     fetchMessages();
-    const unsubscribe = subscribeToMessages();
-    return () => {
-      if (typeof unsubscribe === "function") {
-        unsubscribe();
+    const unsubscribe = client.subscribe(
+      `databases.${DATABASE_ID}.collections.${MESSAGES_COLLECTION_ID}.documents`,
+      (response: RealtimeResponseEvent<Message>) => {
+        if (!response.payload || response.payload.classroomId !== classroomId)
+          return;
+
+        // Dùng addMessage từ store
+        if (
+          response.events.includes(
+            "databases.*.collections.*.documents.*.create"
+          )
+        ) {
+          addMessage(response.payload as Message);
+        }
       }
+    );
+
+    return () => {
+      unsubscribe();
     };
   }, [classroomId]);
+
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
@@ -201,15 +218,11 @@ const ClassroomChat: React.FC<ChatProps> = ({ classroomId }) => {
   }, [messages]);
   const sendMessage = async () => {
     if (!newMessage.trim() || !currentUser) return;
-
-    // Lưu nội dung tin nhắn vào biến
     const messageContent = newMessage.trim();
 
     try {
-      // Clear input ngay lập tức để UX tốt hơn
       setNewMessage("");
 
-      // Tạo message data
       const messageData = {
         content: messageContent,
         senderId: currentUser.$id,
@@ -218,7 +231,7 @@ const ClassroomChat: React.FC<ChatProps> = ({ classroomId }) => {
         classroomId: classroomId,
       };
 
-      // Gửi tin nhắn và đợi response từ server
+      // Gửi tin nhắn và đợi response
       const response = await databases.createDocument(
         DATABASE_ID,
         MESSAGES_COLLECTION_ID,
@@ -226,12 +239,11 @@ const ClassroomChat: React.FC<ChatProps> = ({ classroomId }) => {
         messageData
       );
 
-      // Cập nhật messages với tin nhắn mới từ server (đã có ID chính thức)
-      setMessages((prev) => [...prev, response as Message]);
+      // Thêm message mới vào store ngay sau khi gửi thành công
+      addMessage(response as Message);
     } catch (error) {
       console.error("Error sending message:", error);
       setError("Failed to send message");
-      // Khôi phục tin nhắn nếu gửi thất bại
       setNewMessage(messageContent);
     }
   };

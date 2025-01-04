@@ -3,6 +3,7 @@ import { Clock, Plus, X, Save, AlertCircle, Trash2 } from "lucide-react";
 import { Card, CardContent } from "../ui/card";
 import { useAuth } from "../contexts/auth/authProvider";
 import { Models, ID } from "appwrite";
+import { useClassroomStore } from "../stores/classroomStore";
 
 interface Schedule extends Models.Document {
   classroomId: string;
@@ -29,7 +30,7 @@ const TimeSchedule: React.FC<TimeScheduleProps> = ({ classroomId }) => {
 
   const DATABASE_ID = "674e5e7a0008e19d0ef0";
   const SCHEDULE_COLLECTION_ID = "675668e500195f7e0e72";
-
+  const { refreshSchedule } = useClassroomStore();
   const [formData, setFormData] = useState({
     dayOfWeek: "",
     startTime: "",
@@ -159,6 +160,10 @@ const TimeSchedule: React.FC<TimeScheduleProps> = ({ classroomId }) => {
         teacher: "",
       });
       setError("");
+      await refreshSchedule({
+        classroomId: classroomId,
+        databases: databases,
+      });
     } catch (error: any) {
       console.error("Error creating schedule:", error);
       setError(error.message || "Failed to create schedule");
@@ -180,6 +185,10 @@ const TimeSchedule: React.FC<TimeScheduleProps> = ({ classroomId }) => {
         scheduleId
       );
       await fetchSchedules();
+      await refreshSchedule({
+        classroomId: classroomId,
+        databases: databases,
+      });
     } catch (error) {
       console.error("Error deleting schedule:", error);
       setError("Failed to delete schedule");

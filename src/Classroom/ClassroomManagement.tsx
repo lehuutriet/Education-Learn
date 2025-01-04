@@ -9,13 +9,14 @@ import {
   Eye,
   Trash2,
   AlertCircle,
+  AlertTriangle,
 } from "lucide-react";
 import EducationalFooter from "../EducationalFooter/EducationalFooter";
 import { useNavigate } from "react-router-dom";
 import { Card, CardHeader, CardTitle, CardContent } from "../ui/card";
 import { useAuth } from "../contexts/auth/authProvider";
 import Navigation from "../Navigation/Navigation";
-import { ID } from "appwrite";
+import { ID, Query } from "appwrite";
 interface Classroom {
   $id: string;
   className: string;
@@ -34,7 +35,7 @@ const ClassroomManagement = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { databases, account } = useAuth();
+  const { databases, account, storage } = useAuth();
   const navigate = useNavigate();
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [selectedClassroom, setSelectedClassroom] = useState<Classroom | null>(
@@ -45,12 +46,13 @@ const ClassroomManagement = () => {
     null
   );
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [classroomStats, setClassroomStats] = useState({
+    totalAssignments: 0,
+    submissionRate: 0,
+    averageScore: 0,
+  });
   const [userRole, setUserRole] = useState<string>("");
-  // Handle view details
-  const handleViewDetails = (classroom: Classroom) => {
-    setSelectedClassroom(classroom);
-    setShowDetailsModal(true);
-  };
+  const [isCalculatingStats, setIsCalculatingStats] = useState(false);
   const [formData, setFormData] = useState({
     className: "",
     academicYear: "",
@@ -72,6 +74,13 @@ const ClassroomManagement = () => {
   // Database and collection IDs
   const DATABASE_ID = "674e5e7a0008e19d0ef0";
   const COLLECTION_ID = "675019710029634eb602";
+
+  const CLASSROOM_COLLECTION_ID = "675019710029634eb602";
+  const MESSAGES_COLLECTION_ID = "67569a43002f288aa7d4";
+  const SCHEDULE_COLLECTION_ID = "675668e500195f7e0e72";
+  const ASSIGNMENTS_COLLECTION_ID = "67566466003b28582c75";
+  const SUBMISSIONS_COLLECTION_ID = "6756674e003d4c4b8344";
+  const ATTACHMENTS_BUCKET_ID = "676227ce00218f605bbb";
   useEffect(() => {
     fetchClassrooms();
   }, []);
@@ -93,15 +102,93 @@ const ClassroomManagement = () => {
   };
   const handleDeleteClassroom = async (classroomId: string) => {
     try {
-      await databases.deleteDocument(DATABASE_ID, COLLECTION_ID, classroomId);
+      // 1. Xóa tất cả tin nhắn trong lớp học
+      const messagesResponse = await databases.listDocuments(
+        DATABASE_ID,
+        MESSAGES_COLLECTION_ID,
+        [Query.equal("classroomId", [classroomId])]
+      );
+      await Promise.all(
+        messagesResponse.documents.map((msg) =>
+          databases.deleteDocument(DATABASE_ID, MESSAGES_COLLECTION_ID, msg.$id)
+        )
+      );
 
-      // Refresh classrooms list
+      // 2. Xóa tất cả thời khóa biểu của lớp
+      const scheduleResponse = await databases.listDocuments(
+        DATABASE_ID,
+        SCHEDULE_COLLECTION_ID,
+        [Query.equal("classroomId", [classroomId])]
+      );
+      await Promise.all(
+        scheduleResponse.documents.map((schedule) =>
+          databases.deleteDocument(
+            DATABASE_ID,
+            SCHEDULE_COLLECTION_ID,
+            schedule.$id
+          )
+        )
+      );
+
+      // 3. Xóa tất cả bài tập và tệp đính kèm
+      const assignmentsResponse = await databases.listDocuments(
+        DATABASE_ID,
+        ASSIGNMENTS_COLLECTION_ID,
+        [Query.equal("classroomId", [classroomId])]
+      );
+      await Promise.all(
+        assignmentsResponse.documents.map(async (assignment) => {
+          if (assignment.attachments) {
+            await Promise.all(
+              assignment.attachments.map((fileId: string) =>
+                storage.deleteFile(ATTACHMENTS_BUCKET_ID, fileId)
+              )
+            );
+          }
+          return databases.deleteDocument(
+            DATABASE_ID,
+            ASSIGNMENTS_COLLECTION_ID,
+            assignment.$id
+          );
+        })
+      );
+
+      // 4. Xóa tất cả bài nộp và tệp đính kèm
+      const submissionsResponse = await databases.listDocuments(
+        DATABASE_ID,
+        SUBMISSIONS_COLLECTION_ID,
+        [Query.equal("classroomId", [classroomId])]
+      );
+      await Promise.all(
+        submissionsResponse.documents.map(async (submission) => {
+          if (submission.files) {
+            await Promise.all(
+              submission.files.map((fileId: string) =>
+                storage.deleteFile(ATTACHMENTS_BUCKET_ID, fileId)
+              )
+            );
+          }
+          return databases.deleteDocument(
+            DATABASE_ID,
+            SUBMISSIONS_COLLECTION_ID,
+            submission.$id
+          );
+        })
+      );
+
+      // 5. Cuối cùng xóa lớp học
+      await databases.deleteDocument(
+        DATABASE_ID,
+        CLASSROOM_COLLECTION_ID,
+        classroomId
+      );
+
       await fetchClassrooms();
       setShowDeleteConfirmation(false);
       setClassroomToDelete(null);
     } catch (error) {
       console.error("Error deleting classroom:", error);
-      setError("Failed to delete classroom");
+      setError("Không thể xóa lớp học và dữ liệu liên quan");
     }
   };
 
@@ -147,7 +234,37 @@ const ClassroomManagement = () => {
       setIsLoading(false);
     }
   };
+  const updateClassroomStatus = async (
+    classroomId: string,
+    newStatus: "active" | "inactive"
+  ) => {
+    try {
+      await databases.updateDocument(
+        DATABASE_ID,
+        CLASSROOM_COLLECTION_ID,
+        classroomId,
+        {
+          status: newStatus,
+        }
+      );
 
+      // Cập nhật state local
+      setClassrooms((prevClassrooms) =>
+        prevClassrooms.map((classroom) =>
+          classroom.$id === classroomId
+            ? { ...classroom, status: newStatus }
+            : classroom
+        )
+      );
+
+      if (selectedClassroom && selectedClassroom.$id === classroomId) {
+        setSelectedClassroom({ ...selectedClassroom, status: newStatus });
+      }
+    } catch (error) {
+      console.error("Error updating classroom status:", error);
+      setError("Không thể cập nhật trạng thái lớp học");
+    }
+  };
   const handleJoinClass = async (classroomId: string) => {
     try {
       const user = await account.get();
@@ -212,7 +329,65 @@ const ClassroomManagement = () => {
     });
     setError(null);
   };
+  const calculateClassroomStats = async (classroom: Classroom) => {
+    setIsCalculatingStats(true);
+    try {
+      // 1. Lấy tất cả bài tập của lớp
+      const assignmentsResponse = await databases.listDocuments(
+        DATABASE_ID,
+        ASSIGNMENTS_COLLECTION_ID,
+        [Query.equal("classroomId", [classroom.$id])]
+      );
+      const totalAssignments = assignmentsResponse.documents.length;
 
+      // 2. Lấy tất cả bài nộp của lớp
+      const submissionsResponse = await databases.listDocuments(
+        DATABASE_ID,
+        SUBMISSIONS_COLLECTION_ID,
+        [Query.equal("classroomId", [classroom.$id])]
+      );
+
+      // Tính tỷ lệ nộp bài
+      const studentCount = getStudentCount(
+        classroom.participants,
+        classroom.createdBy
+      );
+      const expectedSubmissions = totalAssignments * studentCount;
+      const submissionRate =
+        expectedSubmissions > 0
+          ? (submissionsResponse.documents.length / expectedSubmissions) * 100
+          : 0;
+
+      // 3. Tính điểm trung bình
+      const gradedSubmissions = submissionsResponse.documents.filter(
+        (sub: any) => sub.status === "graded" && sub.score !== undefined
+      );
+      const averageScore =
+        gradedSubmissions.length > 0
+          ? gradedSubmissions.reduce(
+              (acc: number, sub: any) => acc + (sub.score || 0),
+              0
+            ) / gradedSubmissions.length
+          : 0;
+
+      setClassroomStats({
+        totalAssignments,
+        submissionRate: Math.round(submissionRate),
+        averageScore: Number(averageScore.toFixed(1)),
+      });
+    } catch (error) {
+      console.error("Error calculating classroom stats:", error);
+    } finally {
+      setIsCalculatingStats(false);
+    }
+  };
+
+  // Sửa lại hàm handleViewDetails
+  const handleViewDetails = async (classroom: Classroom) => {
+    setSelectedClassroom(classroom);
+    setShowDetailsModal(true);
+    await calculateClassroomStats(classroom);
+  };
   const handleNavigateToClassroom = (classId: string) => {
     navigate(`/classroom/${classId}`);
   };
@@ -222,16 +397,23 @@ const ClassroomManagement = () => {
       classroom.className.toLowerCase().includes(searchQuery.toLowerCase()) ||
       classroom.teacher.toLowerCase().includes(searchQuery.toLowerCase())
   );
-
+  const getTotalUniqueStudents = () => {
+    return new Set(
+      classrooms.flatMap((classroom) =>
+        classroom.participants.filter((id) => id !== classroom.createdBy)
+      )
+    ).size;
+  };
   return (
     <div className="min-h-screen bg-gray-50">
       <Navigation />
       {/* Thêm div container mới cho content với padding */}
       <div className="max-w-7xl mx-auto px-6 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Quản lý lớp học</h1>
+          <h1 className="text-3xl font-bold text-gray-900">LỚP HỌC</h1>
           <p className="text-gray-600 mt-2">
-            Tạo và quản lý các lớp học trong hệ thống
+            Danh sách các lớp học, bao gồm thông tin giáo viên và số lượng học
+            sinh.
           </p>
         </div>
 
@@ -258,15 +440,7 @@ const ClassroomManagement = () => {
             </CardHeader>
             <CardContent className="flex justify-center items-center">
               <div className="text-2xl font-bold">
-                {classrooms.reduce(
-                  (sum, classroom) =>
-                    sum +
-                    getStudentCount(
-                      classroom.participants,
-                      classroom.createdBy
-                    ),
-                  0
-                )}
+                {getTotalUniqueStudents()}
               </div>
             </CardContent>
           </Card>
@@ -390,14 +564,34 @@ const ClassroomManagement = () => {
                             onClick={() =>
                               handleNavigateToClassroom(classroom.$id)
                             }
-                            className="flex-1 py-2 text-center bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                            disabled={classroom.status !== "active"}
+                            title={
+                              classroom.status !== "active"
+                                ? "Lớp học hiện không hoạt động"
+                                : ""
+                            }
+                            className={`flex-1 py-2 text-center rounded transition-colors ${
+                              classroom.status === "active"
+                                ? "bg-blue-600 text-white hover:bg-blue-700"
+                                : "bg-gray-400 text-gray-200 cursor-not-allowed"
+                            }`}
                           >
                             Vào lớp học
                           </button>
                         ) : (
                           <button
                             onClick={() => handleJoinClass(classroom.$id)}
-                            className="flex-1 py-2 text-center bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                            disabled={classroom.status !== "active"}
+                            title={
+                              classroom.status !== "active"
+                                ? "Không thể tham gia lớp học không hoạt động"
+                                : ""
+                            }
+                            className={`flex-1 py-2 text-center rounded transition-colors ${
+                              classroom.status === "active"
+                                ? "bg-green-600 text-white hover:bg-green-700"
+                                : "bg-gray-400 text-gray-200 cursor-not-allowed"
+                            }`}
                           >
                             Tham gia
                           </button>
@@ -457,8 +651,11 @@ const ClassroomManagement = () => {
         {showDetailsModal && selectedClassroom && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6">
+              {/* Header */}
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-semibold">Chi tiết lớp học</h2>
+                <h2 className="text-2xl font-bold text-gray-800">
+                  Chi tiết lớp học
+                </h2>
                 <button
                   onClick={() => setShowDetailsModal(false)}
                   className="text-gray-400 hover:text-gray-600"
@@ -467,24 +664,58 @@ const ClassroomManagement = () => {
                 </button>
               </div>
 
-              <div className="space-y-4">
+              {/* Body */}
+              <div className="space-y-6">
+                {/* Classroom Information */}
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">
+                  <h3 className="text-xl font-semibold text-blue-600">
                     {selectedClassroom.className}
                   </h3>
-                  <p className="text-gray-600">
-                    Năm học: {selectedClassroom.academicYear}
+                  <p className="text-gray-500">
+                    Năm học:{" "}
+                    <span className="font-medium">
+                      {selectedClassroom.academicYear}
+                    </span>
                   </p>
                 </div>
-
-                <div className="grid grid-cols-2 gap-4">
+                {/* Grid Details */}
+                {isCalculatingStats ? (
+                  <div className="flex items-center justify-center py-4">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-4 mt-6">
+                    <div className="bg-blue-50 p-4 rounded-lg text-center">
+                      <h5 className="text-sm text-gray-600">Số bài tập</h5>
+                      <p className="text-xl font-bold text-blue-600">
+                        {classroomStats.totalAssignments}
+                      </p>
+                    </div>
+                    <div className="bg-green-50 p-4 rounded-lg text-center">
+                      <h5 className="text-sm text-gray-600">Tỷ lệ nộp bài</h5>
+                      <p className="text-xl font-bold text-green-600">
+                        {classroomStats.submissionRate}%
+                      </p>
+                    </div>
+                    <div className="bg-purple-50 p-4 rounded-lg text-center">
+                      <h5 className="text-sm text-gray-600">Điểm TB lớp</h5>
+                      <p className="text-xl font-bold text-purple-600">
+                        {classroomStats.averageScore}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {/* Grid Details */}
+                <div className="grid grid-cols-2 gap-6">
                   <div>
                     <p className="text-sm text-gray-500">Giáo viên chủ nhiệm</p>
-                    <p className="font-medium">{selectedClassroom.teacher}</p>
+                    <p className="font-medium text-gray-800">
+                      {selectedClassroom.teacher}
+                    </p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Sĩ số</p>
-                    <p className="font-medium">
+                    <p className="font-medium text-gray-800">
                       {getStudentCount(
                         selectedClassroom.participants,
                         selectedClassroom.createdBy
@@ -494,57 +725,116 @@ const ClassroomManagement = () => {
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Trạng thái</p>
-                    <p
-                      className={`font-medium ${
-                        selectedClassroom.status === "active"
-                          ? "text-green-600"
-                          : "text-gray-600"
-                      }`}
-                    >
-                      {selectedClassroom.status === "active"
-                        ? "Đang hoạt động"
-                        : "Không hoạt động"}
-                    </p>
+                    {isStaffMember() ? (
+                      <select
+                        value={selectedClassroom.status}
+                        onChange={(e) =>
+                          updateClassroomStatus(
+                            selectedClassroom.$id,
+                            e.target.value as "active" | "inactive"
+                          )
+                        }
+                        className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="active">Đang hoạt động</option>
+                        <option value="inactive">Không hoạt động</option>
+                      </select>
+                    ) : (
+                      <p
+                        className={`font-medium ${
+                          selectedClassroom.status === "active"
+                            ? "text-green-600"
+                            : "text-red-600"
+                        }`}
+                      >
+                        {selectedClassroom.status === "active"
+                          ? "Đang hoạt động"
+                          : "Không hoạt động"}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Ngày tạo</p>
-                    <p className="font-medium">
+                    <p className="font-medium text-gray-800">
                       {new Date(
                         selectedClassroom.createdAt
                       ).toLocaleDateString()}
                     </p>
                   </div>
                 </div>
+              </div>
 
-                <div className="pt-6 flex justify-end gap-3">
-                  <button
-                    onClick={() => setShowDetailsModal(false)}
-                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-                  >
-                    Đóng
-                  </button>
-                  {selectedClassroom.participants?.includes(currentUserId) ? (
-                    <button
-                      onClick={() => {
-                        handleNavigateToClassroom(selectedClassroom.$id);
-                        setShowDetailsModal(false);
-                      }}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                      Vào lớp học
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        handleJoinClass(selectedClassroom.$id);
-                        setShowDetailsModal(false);
-                      }}
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                    >
-                      Tham gia lớp học
-                    </button>
-                  )}
+              {/* Cảnh báo trạng thái */}
+              {selectedClassroom.status !== "active" && (
+                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <div className="flex items-center">
+                    <AlertTriangle className="w-5 h-5 text-yellow-500 mr-2" />
+                    <p className="text-sm text-yellow-700">
+                      Lớp học hiện đang không hoạt động. Liên hệ giáo viên để
+                      biết thêm chi tiết.
+                    </p>
+                  </div>
                 </div>
+              )}
+              {/* Footer */}
+              <div className="pt-6 flex justify-end gap-4">
+                <button
+                  onClick={() => setShowDetailsModal(false)}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Đóng
+                </button>
+                {isStaffMember() ? (
+                  <button
+                    onClick={() => {
+                      handleNavigateToClassroom(selectedClassroom.$id);
+                      setShowDetailsModal(false);
+                    }}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Vào lớp học
+                  </button>
+                ) : selectedClassroom.participants?.includes(currentUserId) ? (
+                  <button
+                    onClick={() => {
+                      handleNavigateToClassroom(selectedClassroom.$id);
+                      setShowDetailsModal(false);
+                    }}
+                    disabled={selectedClassroom.status !== "active"}
+                    title={
+                      selectedClassroom.status !== "active"
+                        ? "Lớp học hiện không hoạt động"
+                        : ""
+                    }
+                    className={`px-4 py-2 rounded-lg transition-colors ${
+                      selectedClassroom.status === "active"
+                        ? "bg-blue-600 text-white hover:bg-blue-700"
+                        : "bg-gray-400 text-gray-200 cursor-not-allowed"
+                    }`}
+                  >
+                    Vào lớp học
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      handleJoinClass(selectedClassroom.$id);
+                      setShowDetailsModal(false);
+                    }}
+                    disabled={selectedClassroom.status !== "active"}
+                    title={
+                      selectedClassroom.status !== "active"
+                        ? "Không thể tham gia lớp học không hoạt động"
+                        : ""
+                    }
+                    className={`px-4 py-2 rounded-lg transition-colors ${
+                      selectedClassroom.status === "active"
+                        ? "bg-green-600 text-white hover:bg-green-700"
+                        : "bg-gray-400 text-gray-200 cursor-not-allowed"
+                    }`}
+                  >
+                    Tham gia lớp học
+                  </button>
+                )}
               </div>
             </div>
           </div>

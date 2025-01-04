@@ -7,7 +7,7 @@ import AdminPage from "../AdminPage";
 import PageNotFound from "./pageNotFound";
 import ExamManagement from "../Education/ExamManagement";
 import Exercise from "../Management/exercise";
-
+import Register from "../contexts/auth/Register";
 import ClassroomPage from "../Classroom/ClassroomPage";
 import ClassroomManagement from "../Classroom/ClassroomManagement";
 import Story from "../Education/Story";
@@ -36,7 +36,10 @@ export const Router = createBrowserRouter([
         path: "",
         element: <Login />,
       },
-
+      {
+        path: "/register",
+        element: <Register />, // Không cần bọc trong ProtectedRoute
+      },
       // Protected routes
       {
         path: "/admin",

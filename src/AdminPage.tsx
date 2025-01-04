@@ -12,7 +12,6 @@ import {
   LogOut,
   User,
   Mail,
-  Phone,
 } from "lucide-react";
 import { ExecutionMethod } from "appwrite";
 import { useAuth } from "./contexts/auth/authProvider";
@@ -21,6 +20,10 @@ import _ from "lodash";
 import LectureManagement from "./Management/LectureManagement";
 import { useNavigate } from "react-router-dom";
 import Exercise from "./Management/exercise";
+import PhoneInput from "react-phone-input-2";
+import "react-phone-input-2/lib/style.css";
+import { toast } from "react-hot-toast";
+
 interface User {
   id: string;
   name: string;
@@ -83,8 +86,17 @@ const AdminPage = () => {
   const handleLogout = async () => {
     try {
       await account.deleteSession("current");
+      toast.success("Đăng xuất thành công!", {
+        icon: "👋",
+        style: {
+          borderRadius: "10px",
+          background: "#333",
+          color: "#fff",
+        },
+      });
       navigate("/");
     } catch (error) {
+      toast.error("Có lỗi xảy ra khi đăng xuất");
       console.error("Error during logout:", error);
     }
   };
@@ -109,11 +121,12 @@ const AdminPage = () => {
   const formatPhoneNumber = (phone: string) => {
     // Remove non-numeric characters
     const cleaned = phone.replace(/\D/g, "");
-    // Format as Vietnamese phone number
-    if (cleaned.length >= 10) {
-      return `+84${cleaned.slice(-9)}`;
-    }
-    return cleaned;
+    // Remove leading 0 if exists
+    const numberWithoutZero = cleaned.startsWith("0")
+      ? cleaned.slice(1)
+      : cleaned;
+    // Always add +84 prefix
+    return `+84${numberWithoutZero}`;
   };
 
   // Sửa lại phần validate form
@@ -145,11 +158,12 @@ const AdminPage = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
-
     const userData = {
-      ...formData,
+      name: formData.name,
+      email: formData.email,
       phone: formatPhoneNumber(formData.phone),
-      labels: [formData.role],
+      password: formData.password,
+      labels: [formData.role], // Đảm bảo labels là array
     };
 
     try {
@@ -178,12 +192,8 @@ const AdminPage = () => {
     );
   };
 
-  const addUser = async (userData: {
-    name: string;
-    email: string;
-    phone: string;
-    password?: string;
-  }) => {
+  const addUser = async (userData: any) => {
+    // Kiểm tra trùng email/phone
     if (isEmailOrPhoneExist(userData.email, userData.phone)) {
       setError("Email hoặc số điện thoại đã tồn tại.");
       return;
@@ -191,33 +201,43 @@ const AdminPage = () => {
 
     setIsLoading(true);
     setError(null);
-    setDebugInfo("");
-    closeUserModal();
 
     try {
-      await functions.createExecution(
+      // Chuẩn bị payload đúng format
+      const payload = {
+        name: userData.name,
+        email: userData.email,
+        phone: formatPhoneNumber(userData.phone),
+        password: userData.password,
+        labels: userData.labels, // Đảm bảo đây là array
+      };
+
+      console.log("Sending payload:", payload);
+
+      const response = await functions.createExecution(
         functionId,
-        JSON.stringify(userData),
+        JSON.stringify(payload),
         false,
         "/add-users",
         ExecutionMethod.POST
       );
-      await fetchUsers();
-      closeUserModal();
-    } catch (error: unknown) {
-      console.error("Error adding user:", error);
 
-      if (error instanceof Error) {
-        setError(`Failed to add user: ${error.message}`);
-        setDebugInfo(
-          (prevInfo) => prevInfo + `\nAdd user error: ${error.message}`
-        );
-      } else {
-        setError("Failed to add user: An unknown error occurred");
-        setDebugInfo(
-          (prevInfo) => prevInfo + "\nAdd user error: Unknown error"
-        );
+      if (!response?.responseBody) {
+        throw new Error("Không nhận được phản hồi từ server");
       }
+
+      const result = JSON.parse(response.responseBody);
+
+      if (result.status === "error") {
+        throw new Error(result.message || "Không thể thêm người dùng");
+      }
+
+      // Nếu thành công
+      await fetchUsers(); // Refresh danh sách người dùng
+      closeUserModal();
+    } catch (error: any) {
+      console.error("Error adding user:", error);
+      setError(error.message || "Không thể thêm người dùng");
     } finally {
       setIsLoading(false);
     }
@@ -343,6 +363,7 @@ const AdminPage = () => {
     return _.countBy(users, (user) => user.labels[0]); // Lấy role đầu tiên của mỗi user
   };
   const roleStats = getRoleStats();
+
   const fetchUsers = async () => {
     setIsLoading(true);
     setError(null);
@@ -356,13 +377,21 @@ const AdminPage = () => {
         ExecutionMethod.POST
       );
 
+      console.log("Raw response:", response); // Log full response
+
       if (response?.responseBody) {
         const result = JSON.parse(response.responseBody);
+        console.log("Parsed result:", result); // Log parsed result
+
+        // Kiểm tra xem mỗi user có đủ trường không
         if (Array.isArray(result)) {
-          setUsers(result);
-          setAllUsers(result); // Update allUsers state as well
-        } else {
-          throw new Error("Invalid response format");
+          const processedUsers = result.map((user) => ({
+            ...user,
+            labels: user.labels || [], // Đảm bảo labels luôn là array
+          }));
+          console.log("Processed users:", processedUsers);
+          setUsers(processedUsers);
+          setAllUsers(processedUsers);
         }
       }
     } catch (error: any) {
@@ -660,14 +689,18 @@ const AdminPage = () => {
                             {formatDate(user.registration)}
                           </td>
                           <td className="px-6 py-4">
-                            {user.labels.map((label) => (
-                              <span
-                                key={label}
-                                className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mr-2"
-                              >
-                                {label}
-                              </span>
-                            ))}
+                            {user.labels && user.labels.length > 0 ? (
+                              user.labels.map((label) => (
+                                <span
+                                  key={label}
+                                  className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mr-2"
+                                >
+                                  {label}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex justify-center gap-3">
@@ -776,21 +809,16 @@ const AdminPage = () => {
                   <label className="block text-sm font-medium text-gray-700">
                     Số điện thoại <span className="text-red-500">*</span>
                   </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Phone className="size-5 text-gray-400" />
-                    </div>
-                    <input
-                      type="tel"
-                      required
-                      value={formData.phone}
-                      onChange={(e) =>
-                        setFormData({ ...formData, phone: e.target.value })
-                      }
-                      className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                      placeholder="Nhập số điện thoại"
-                    />
-                  </div>
+                  <PhoneInput
+                    country={"vn"}
+                    value={formData.phone}
+                    onChange={(phone) =>
+                      setFormData({ ...formData, phone: `+${phone}` })
+                    }
+                    inputClass="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    containerClass="w-full"
+                    placeholder="Nhập số điện thoại"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">

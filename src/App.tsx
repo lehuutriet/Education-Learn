@@ -1,6 +1,7 @@
 import { AuthProvider } from "./contexts/auth/authProvider";
 import { RouterProvider } from "react-router-dom";
 import { Router } from "./routes/routers";
+import { Toaster } from "react-hot-toast";
 
 import * as React from "react";
 import { ErrorBoundary } from "react-error-boundary";
@@ -31,6 +32,7 @@ export const App = ({}: AppProviderProps) => (
     <ErrorBoundary FallbackComponent={ErrorFallback}>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
+          <Toaster position="top-right" />
           <RouterProvider router={Router} />
         </AuthProvider>
       </QueryClientProvider>

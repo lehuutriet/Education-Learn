@@ -1,63 +1,53 @@
 import React, { useEffect, useState } from "react";
 
 interface CountdownProps {
-  startTime: string;
-  endTime: string;
   duration: number;
+  hasStarted: boolean;
 }
 
-export const Countdown: React.FC<CountdownProps> = ({ startTime, endTime }) => {
-  const [timeLeft, setTimeLeft] = useState<string>("");
-  const [status, setStatus] = useState<"not_started" | "in_progress" | "ended">(
-    "not_started"
-  );
+export const Countdown: React.FC<CountdownProps> = ({
+  duration,
+  hasStarted,
+}) => {
+  const [timeLeft, setTimeLeft] = useState(duration * 60);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      const now = new Date().getTime();
-      const start = new Date(startTime).getTime();
-      const end = new Date(endTime).getTime();
+    if (!hasStarted) return;
 
-      if (now < start) {
-        setStatus("not_started");
-        const distance = start - now;
-        const days = Math.floor(distance / (1000 * 60 * 60 * 24));
-        const hours = Math.floor(
-          (distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)
-        );
-        const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((distance % (1000 * 60)) / 1000);
-        setTimeLeft(`Bắt đầu sau: ${days}d ${hours}h ${minutes}m ${seconds}s`);
-      } else if (now > end) {
-        setStatus("ended");
-        setTimeLeft("Đã kết thúc");
-      } else {
-        setStatus("in_progress");
-        const distance = end - now;
-        const hours = Math.floor(distance / (1000 * 60 * 60));
-        const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((distance % (1000 * 60)) / 1000);
-        setTimeLeft(`Còn lại: ${hours}h ${minutes}m ${seconds}s`);
-      }
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 0) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [startTime, endTime]);
+  }, [hasStarted]);
+
+  const minutes = Math.floor(timeLeft / 60);
+  const seconds = timeLeft % 60;
 
   return (
     <div
       className={`
       px-3 py-2 rounded-lg text-sm font-medium
       ${
-        status === "in_progress"
+        hasStarted
           ? "bg-green-100 text-green-800"
-          : status === "ended"
+          : timeLeft === 0
           ? "bg-red-100 text-red-800"
           : "bg-yellow-100 text-yellow-800"
       }
     `}
     >
-      {timeLeft}
+      {timeLeft > 0
+        ? `Còn lại: ${String(minutes).padStart(2, "0")}:${String(
+            seconds
+          ).padStart(2, "0")}`
+        : "Đã kết thúc"}
     </div>
   );
 };

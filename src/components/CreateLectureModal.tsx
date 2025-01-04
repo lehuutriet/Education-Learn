@@ -179,6 +179,7 @@ const CreateLectureModal = ({
                   <option>Tiếng Việt</option>
                   <option>Toán</option>
                   <option>Tiếng Anh</option>
+                  <option>Ngôn ngữ kí hiệu</option>
                 </select>
               </div>
 

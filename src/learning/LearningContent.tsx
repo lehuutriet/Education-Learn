@@ -4,7 +4,6 @@ import {
   Star,
   Lock,
   LucideIcon,
-  CircleCheck,
   BookOpen,
   School,
   University,
@@ -208,77 +207,66 @@ const LearningContent = () => {
   return (
     <>
       <div className="max-w-4xl mx-auto p-8">
-        <div className="space-y-12">
-          {lessons.map((lesson, index) => (
-            <div key={lesson.id} className="relative">
-              {/* Connector Line */}
-              {index < lessons.length - 1 && (
-                <div className="absolute left-1/2 top-28 -translate-x-1/2 w-1 h-16 bg-gray-200" />
-              )}
+        {/* Thêm tiêu đề section */}
+        <div className="text-center mb-12">
+          <h1 className="text-3xl font-bold text-gray-900 mb-4">
+            Chọn cấp độ học tập
+          </h1>
+          <p className="text-gray-600">
+            Hãy bắt đầu với những bài học phù hợp với trình độ của bạn
+          </p>
+        </div>
 
-              {/* Lesson Card */}
-              <div
-                className={`relative z-10 flex flex-col items-center ${
-                  lesson.isLocked ? "opacity-75" : ""
-                }`}
-              >
-                {/* Icon Circle */}
+        {/* Grid layout thay vì stack dọc */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {lessons.map((lesson) => (
+            <div
+              key={lesson.id}
+              className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow"
+            >
+              <div className="flex items-center gap-6">
+                {/* Icon circle với style mới */}
                 <div
                   onClick={() => handleLessonClick(lesson)}
-                  className={`w-24 h-24 rounded-full flex items-center justify-center mb-4 transition-transform hover:scale-110 
-                    ${
-                      lesson.isLocked
-                        ? "bg-gray-200"
-                        : "cursor-pointer shadow-lg"
-                    }`}
+                  className={`w-20 h-20 rounded-2xl flex items-center justify-center transition-transform hover:scale-105
+              ${lesson.isLocked ? "bg-gray-100" : "cursor-pointer"}
+            `}
                   style={{
                     backgroundColor: lesson.isLocked
                       ? undefined
-                      : `${lesson.color}20`,
+                      : `${lesson.color}15`,
                   }}
                 >
                   {lesson.isLocked ? (
-                    <Lock className="w-10 h-10 text-gray-400" />
+                    <Lock className="w-8 h-8 text-gray-400" />
                   ) : (
                     <lesson.icon
-                      className="w-12 h-12"
+                      className="w-10 h-10"
                       style={{ color: lesson.color }}
                     />
                   )}
                 </div>
 
-                {/* Title */}
-                <h3 className="text-lg font-bold text-gray-900 mb-2">
-                  {lesson.title}
-                </h3>
+                {/* Content */}
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">
+                    {lesson.title}
+                  </h3>
 
-                {/* Level Requirement */}
-                {lesson.isLocked && (
-                  <span className="text-sm text-gray-500 mb-2">
-                    Yêu cầu vượt qua {lesson.requiredLevel} cấp độ
-                  </span>
-                )}
-
-                {/* Stars */}
-                <div className="flex gap-1">
-                  {[1, 2, 3].map((star) => (
-                    <Star
-                      key={star}
-                      className={`w-6 h-6 ${
-                        star <= (lessonStars[lesson.id] || lesson.stars)
-                          ? "fill-yellow-400 text-yellow-400"
-                          : "text-gray-300"
-                      }`}
-                    />
-                  ))}
-                </div>
-
-                {/* Completion Status */}
-                {lesson.isCompleted && (
-                  <div className="absolute -top-2 -right-2">
-                    <CircleCheck className="w-8 h-8 text-green-500 fill-white" />
+                  {/* Stars */}
+                  <div className="flex gap-1">
+                    {[1, 2, 3].map((star) => (
+                      <Star
+                        key={star}
+                        className={`w-5 h-5 ${
+                          star <= (lessonStars[lesson.id] || lesson.stars)
+                            ? "fill-yellow-400 text-yellow-400"
+                            : "text-gray-300"
+                        }`}
+                      />
+                    ))}
                   </div>
-                )}
+                </div>
               </div>
             </div>
           ))}

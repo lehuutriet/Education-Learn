@@ -3,9 +3,10 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/auth/authProvider";
 import Navigation from "../Navigation/Navigation";
 import ClassroomChat from "./ClassroomChat";
-import { useDataCache } from "../contexts/auth/DataCacheProvider";
+import { useClassroomStore } from "../stores/classroomStore";
 import TimeSchedule from "./TimeSchedule";
 import { ScheduleItem } from "../type/type";
+import StudentsList from "./StudentsList";
 import {
   BookOpen,
   Calendar,
@@ -15,7 +16,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "../ui/card";
-import { Models } from "appwrite";
+import { Models, Query, RealtimeResponseEvent } from "appwrite";
 import TodaySchedule from "./TodaySchedule";
 import Assignments from "./Assignments";
 import { format } from "date-fns";
@@ -39,15 +40,20 @@ interface Assignment extends Models.Document {
   classroomId: string;
 }
 
-type TabType = "overview" | "exam" | "schedule" | "chat" | "history";
+type TabType =
+  | "overview"
+  | "exam"
+  | "schedule"
+  | "chat"
+  | "history"
+  | "students";
 
 const ClassroomPage: React.FC = () => {
-  const { databases, account } = useAuth();
+  const { databases, account, client } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [classroom, setClassroom] = useState<Classroom | null>(null);
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
-
-  const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
+  const [, setAssignments] = useState<Assignment[]>([]);
+  const [, setSchedule] = useState<ScheduleItem[]>([]);
   const { classroomId = "" } = useParams<{ classroomId: string }>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -55,17 +61,22 @@ const ClassroomPage: React.FC = () => {
   const DATABASE_ID = "674e5e7a0008e19d0ef0";
   const CLASSROOM_COLLECTION_ID = "675019710029634eb602";
   const ASSIGNMENTS_COLLECTION_ID = "67566466003b28582c75";
-
   const SCHEDULE_COLLECTION_ID = "675668e500195f7e0e72";
-  const { getCachedData, setCachedData, isDataCached } = useDataCache();
-  const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
   const navigate = useNavigate();
-  useEffect(() => {
-    if (classroomId) {
-      fetchClassroomData();
-    }
-  }, [classroomId]);
+  const { assignments, schedule, refreshAssignments, refreshSchedule } =
+    useClassroomStore();
 
+  useEffect(() => {
+    refreshAssignments({
+      classroomId: classroomId,
+      databases: databases,
+    });
+
+    refreshSchedule({
+      classroomId: classroomId,
+      databases: databases,
+    });
+  }, [classroomId]);
   useEffect(() => {
     const getCurrentUser = async () => {
       try {
@@ -77,61 +88,69 @@ const ClassroomPage: React.FC = () => {
     };
     getCurrentUser();
   }, [account]);
+  const handleRemoveStudent = async (studentId: string) => {
+    if (!classroom) return;
+    try {
+      const updatedParticipants = classroom.participants.filter(
+        (id) => id !== studentId
+      );
+
+      await databases.updateDocument(
+        DATABASE_ID,
+        CLASSROOM_COLLECTION_ID,
+        classroomId,
+        {
+          participants: updatedParticipants,
+        }
+      );
+
+      if (classroom) {
+        setClassroom({
+          ...classroom,
+          participants: updatedParticipants,
+          className: classroom.className,
+          academicYear: classroom.academicYear,
+          teacher: classroom.teacher,
+          status: classroom.status,
+          studentCount: classroom.studentCount,
+          createdAt: classroom.createdAt,
+        });
+      }
+    } catch (error) {
+      console.error("Error removing student:", error);
+      setError("Không thể xóa học sinh khỏi lớp");
+    }
+  };
+  // Thêm filter trong fetch assignments và schedule
   const fetchClassroomData = async () => {
     if (!classroomId) return;
-
-    // Check cache first
-    const CLASSROOM_CACHE_KEY = `classroom-${classroomId}`;
-    const ASSIGNMENTS_CACHE_KEY = `assignments-${classroomId}`;
-    const SCHEDULE_CACHE_KEY = `schedule-${classroomId}`;
 
     try {
       setLoading(true);
 
       // Fetch classroom details
-      if (isDataCached(CLASSROOM_CACHE_KEY)) {
-        setClassroom(getCachedData(CLASSROOM_CACHE_KEY));
-      } else {
-        const classroomData = await databases.getDocument(
-          DATABASE_ID,
-          CLASSROOM_COLLECTION_ID,
-          classroomId
-        );
-        setCachedData(CLASSROOM_CACHE_KEY, classroomData, CACHE_DURATION);
-        setClassroom(classroomData as Classroom);
-      }
+      const classroomData = await databases.getDocument(
+        DATABASE_ID,
+        CLASSROOM_COLLECTION_ID,
+        classroomId
+      );
+      setClassroom(classroomData as Classroom);
 
-      // Fetch assignments
-      if (isDataCached(ASSIGNMENTS_CACHE_KEY)) {
-        setAssignments(getCachedData(ASSIGNMENTS_CACHE_KEY));
-      } else {
-        const assignmentsResponse = await databases.listDocuments(
-          DATABASE_ID,
-          ASSIGNMENTS_COLLECTION_ID
-        );
-        setCachedData(
-          ASSIGNMENTS_CACHE_KEY,
-          assignmentsResponse.documents,
-          CACHE_DURATION
-        );
-        setAssignments(assignmentsResponse.documents as Assignment[]);
-      }
+      // Fetch assignments với filter
+      const assignmentsResponse = await databases.listDocuments(
+        DATABASE_ID,
+        ASSIGNMENTS_COLLECTION_ID,
+        [Query.equal("classroomId", [classroomId])]
+      );
+      setAssignments(assignmentsResponse.documents as Assignment[]);
 
-      // Fetch schedule
-      if (isDataCached(SCHEDULE_CACHE_KEY)) {
-        setSchedule(getCachedData(SCHEDULE_CACHE_KEY));
-      } else {
-        const scheduleResponse = await databases.listDocuments(
-          DATABASE_ID,
-          SCHEDULE_COLLECTION_ID
-        );
-        setCachedData(
-          SCHEDULE_CACHE_KEY,
-          scheduleResponse.documents,
-          CACHE_DURATION
-        );
-        setSchedule(scheduleResponse.documents as ScheduleItem[]);
-      }
+      // Fetch schedule với filter
+      const scheduleResponse = await databases.listDocuments(
+        DATABASE_ID,
+        SCHEDULE_COLLECTION_ID,
+        [Query.equal("classroomId", [classroomId])]
+      );
+      setSchedule(scheduleResponse.documents as ScheduleItem[]);
     } catch (error) {
       console.error("Error fetching classroom data:", error);
       setError("Failed to load classroom data");
@@ -139,6 +158,90 @@ const ClassroomPage: React.FC = () => {
       setLoading(false);
     }
   };
+
+  // Add this function to handle assignment updates
+  const handleAssignmentUpdate = (
+    response: RealtimeResponseEvent<Assignment>
+  ) => {
+    if (!response.payload || response.payload.classroomId !== classroomId)
+      return;
+
+    setAssignments((prev) => {
+      if (
+        response.events.includes("databases.*.collections.*.documents.*.create")
+      ) {
+        return [...prev, response.payload as Assignment];
+      }
+      if (
+        response.events.includes("databases.*.collections.*.documents.*.update")
+      ) {
+        return prev.map((item) =>
+          item.$id === response.payload.$id
+            ? (response.payload as Assignment)
+            : item
+        );
+      }
+      if (
+        response.events.includes("databases.*.collections.*.documents.*.delete")
+      ) {
+        return prev.filter((item) => item.$id !== response.payload.$id);
+      }
+      return prev;
+    });
+  };
+
+  // Add this function to handle schedule updates
+  const handleScheduleUpdate = (
+    response: RealtimeResponseEvent<ScheduleItem>
+  ) => {
+    if (!response.payload || response.payload.classroomId !== classroomId)
+      return;
+
+    setSchedule((prev) => {
+      if (
+        response.events.includes("databases.*.collections.*.documents.*.create")
+      ) {
+        return [...prev, response.payload as ScheduleItem];
+      }
+      if (
+        response.events.includes("databases.*.collections.*.documents.*.update")
+      ) {
+        return prev.map((item) =>
+          item.$id === response.payload.$id
+            ? (response.payload as ScheduleItem)
+            : item
+        );
+      }
+      if (
+        response.events.includes("databases.*.collections.*.documents.*.delete")
+      ) {
+        return prev.filter((item) => item.$id !== response.payload.$id);
+      }
+      return prev;
+    });
+  };
+
+  // Sửa lại subscription để handle create, update, delete
+  useEffect(() => {
+    fetchClassroomData();
+
+    const unsubscribeAssignments = client.subscribe(
+      `databases.${DATABASE_ID}.collections.${ASSIGNMENTS_COLLECTION_ID}.documents`,
+      handleAssignmentUpdate
+    );
+
+    const unsubscribeSchedule = client.subscribe(
+      `databases.${DATABASE_ID}.collections.${SCHEDULE_COLLECTION_ID}.documents`,
+      handleScheduleUpdate
+    );
+
+    return () => {
+      unsubscribeAssignments();
+      unsubscribeSchedule();
+    };
+  }, [classroomId]);
+
+  // Phần code còn lại giữ nguyên
 
   if (loading) {
     return (
@@ -161,6 +264,7 @@ const ClassroomPage: React.FC = () => {
     );
   }
 
+  // Modify the assignments section in renderTabContent to sort by due date
   const renderTabContent = () => {
     switch (activeTab) {
       case "overview":
@@ -178,6 +282,11 @@ const ClassroomPage: React.FC = () => {
                   .filter(
                     (assignment) => assignment.classroomId === classroomId
                   )
+                  .sort(
+                    (a, b) =>
+                      new Date(b.dueDate).getTime() -
+                      new Date(a.dueDate).getTime()
+                  )
                   .slice(0, 3)
                   .map((assignment) => (
                     <div key={assignment.$id} className="mb-4">
@@ -191,6 +300,11 @@ const ClassroomPage: React.FC = () => {
                       </p>
                     </div>
                   ))}
+                {assignments.filter(
+                  (assignment) => assignment.classroomId === classroomId
+                ).length === 0 && (
+                  <p className="text-sm text-gray-500">Chưa có bài tập nào</p>
+                )}
               </CardContent>
             </Card>
 
@@ -243,6 +357,14 @@ const ClassroomPage: React.FC = () => {
           );
         }
         return <SubmissionHistory classroomId={classroomId} />;
+      case "students":
+        return (
+          <StudentsList
+            classroomId={classroomId}
+            participants={classroom.participants}
+            onRemoveStudent={handleRemoveStudent}
+          />
+        );
     }
   };
 
@@ -324,6 +446,16 @@ const ClassroomPage: React.FC = () => {
               }`}
             >
               Lịch sử nộp bài
+            </button>
+            <button
+              onClick={() => setActiveTab("students")}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === "students"
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              Danh sách học sinh
             </button>
           </nav>
         </div>

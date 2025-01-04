@@ -1,4 +1,13 @@
-import { GraduationCap, BookOpen, Brain, Heart } from "lucide-react";
+import {
+  GraduationCap,
+  Brain,
+  Heart,
+  Facebook,
+  Youtube,
+  Mail,
+  Phone,
+  MapPin,
+} from "lucide-react";
 
 const EducationalFooter = () => {
   const floatingObjects = [
@@ -44,66 +53,79 @@ const EducationalFooter = () => {
           </svg>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-20">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
           {/* VGM Education */}
           <div className="space-y-6">
             <div className="flex items-center gap-3 mb-8">
               <GraduationCap className="w-8 h-8 text-teal-300" />
-              <h3 className="text-2xl font-bold">VGM Education</h3>
+              <h3 className="text-2xl font-bold">VGM Giáo Dục</h3>
             </div>
             <p className="text-blue-100 text-lg leading-relaxed">
-              Inspiring minds and shaping futures through innovative education
-              and lifelong learning.
+              Truyền cảm hứng và định hình tương lai thông qua giáo dục đổi mới
+              và học tập suốt đời.
             </p>
+            <div className="flex gap-4 pt-4">
+              <a href="#" className="hover:text-teal-300 transition-colors">
+                <Facebook className="w-6 h-6" />
+              </a>
+              <a href="#" className="hover:text-teal-300 transition-colors">
+                <Youtube className="w-6 h-6" />
+              </a>
+            </div>
           </div>
 
-          {/* Quick Links */}
+          {/* Tính Năng */}
           <div className="space-y-6">
             <h4 className="text-xl font-semibold flex items-center gap-3 mb-8">
-              <BookOpen className="w-8 h-8 text-teal-300" />
-              Quick Links
+              <Brain className="w-8 h-8 text-teal-300" />
+              Tính Năng
             </h4>
             <ul className="space-y-4">
-              <li className="transform transition-transform duration-300 hover:translate-x-2">
-                <a href="#" className="text-blue-100 hover:text-white text-lg">
-                  Courses
-                </a>
+              <li className="flex items-center gap-3 group">
+                <Heart className="w-5 h-5 text-teal-300 transition-transform duration-300 group-hover:scale-125" />
+                <span className="text-blue-100 text-lg group-hover:text-teal-300 transition-colors">
+                  Học Tập Tương Tác
+                </span>
               </li>
-              <li className="transform transition-transform duration-300 hover:translate-x-2">
-                <a href="#" className="text-blue-100 hover:text-white text-lg">
-                  Resources
-                </a>
+              <li className="flex items-center gap-3 group">
+                <Heart className="w-5 h-5 text-teal-300 transition-transform duration-300 group-hover:scale-125" />
+                <span className="text-blue-100 text-lg group-hover:text-teal-300 transition-colors">
+                  Giảng Viên Chuyên Nghiệp
+                </span>
               </li>
-              <li className="transform transition-transform duration-300 hover:translate-x-2">
-                <a href="#" className="text-blue-100 hover:text-white text-lg">
-                  Community
-                </a>
+              <li className="flex items-center gap-3 group">
+                <Heart className="w-5 h-5 text-teal-300 transition-transform duration-300 group-hover:scale-125" />
+                <span className="text-blue-100 text-lg group-hover:text-teal-300 transition-colors">
+                  Hỗ Trợ 24/7
+                </span>
               </li>
             </ul>
           </div>
 
-          {/* Features */}
+          {/* Liên Hệ */}
           <div className="space-y-6">
             <h4 className="text-xl font-semibold flex items-center gap-3 mb-8">
-              <Brain className="w-8 h-8 text-teal-300" />
-              Features
+              <Phone className="w-8 h-8 text-teal-300" />
+              Liên Hệ
             </h4>
             <ul className="space-y-4">
               <li className="flex items-center gap-3 group">
-                <Heart className="w-5 h-5 text-teal-300 transition-transform duration-300 group-hover:scale-125" />
-                <span className="text-blue-100 text-lg">
-                  Interactive Learning
+                <Mail className="w-5 h-5 text-teal-300" />
+                <span className="text-blue-100 text-lg hover:text-teal-300 transition-colors">
+                  contact@vgm.edu.vn
                 </span>
               </li>
               <li className="flex items-center gap-3 group">
-                <Heart className="w-5 h-5 text-teal-300 transition-transform duration-300 group-hover:scale-125" />
-                <span className="text-blue-100 text-lg">
-                  Expert Instructors
+                <Phone className="w-5 h-5 text-teal-300" />
+                <span className="text-blue-100 text-lg hover:text-teal-300 transition-colors">
+                  0123.456.789
                 </span>
               </li>
-              <li className="flex items-center gap-3 group">
-                <Heart className="w-5 h-5 text-teal-300 transition-transform duration-300 group-hover:scale-125" />
-                <span className="text-blue-100 text-lg">24/7 Support</span>
+              <li className="flex items-start gap-3 group">
+                <MapPin className="w-5 h-5 text-teal-300 flex-shrink-0 mt-1" />
+                <span className="text-blue-100 text-lg hover:text-teal-300 transition-colors">
+                  123 Đường ABC, Quận XYZ, TP.HCM
+                </span>
               </li>
             </ul>
           </div>
@@ -111,9 +133,7 @@ const EducationalFooter = () => {
 
         {/* Copyright */}
         <div className="mt-16 pt-8 border-t border-blue-400/30 text-center text-blue-200">
-          <p className="text-lg">
-            &copy; 2024 VGM Education. All rights reserved.
-          </p>
+          <p className="text-lg">&copy; 2025 VGM Giáo Dục.</p>
         </div>
       </div>
     </footer>

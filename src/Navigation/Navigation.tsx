@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { X, Menu, ChevronDown } from "lucide-react";
 import { useAuth } from "../contexts/auth/authProvider";
 import { useNavigate, useLocation } from "react-router-dom";
+import { toast } from "react-hot-toast";
 
 const Navigation = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -46,8 +47,17 @@ const Navigation = () => {
   const handleLogout = async () => {
     try {
       await account.deleteSession("current");
+      toast.success("Đăng xuất thành công!", {
+        icon: "👋",
+        style: {
+          borderRadius: "10px",
+          background: "#333",
+          color: "#fff",
+        },
+      });
       navigate("/");
     } catch (error) {
+      toast.error("Có lỗi xảy ra khi đăng xuất");
       console.error("Error during logout:", error);
     }
   };
@@ -58,26 +68,6 @@ const Navigation = () => {
     return location.pathname.startsWith(path);
   };
 
-  const aboutMenuItems = [
-    {
-      column: "left",
-      items: [
-        { label: "Our Story", link: "#" },
-        { label: "Mission", link: "#" },
-        { label: "Leadership", link: "#" },
-        { label: "Faculty & Staff", link: "#" },
-      ],
-    },
-    {
-      column: "right",
-      items: [
-        { label: "Campus & Facilities", link: "#" },
-        { label: "History", link: "#" },
-        { label: "Careers", link: "#" },
-      ],
-    },
-  ];
-
   const closeMobileMenu = () => {
     setIsMobileMenuOpen(false);
     setIsAboutDropdownOpen(false);
@@ -87,145 +77,130 @@ const Navigation = () => {
     <div className={`relative ${isScrolled ? "pt-[73px]" : ""}`}>
       <nav
         className={`
-      w-full
-      ${
-        isScrolled
-          ? "fixed top-0 left-0 right-0 shadow-md animate-slideDown"
-          : "relative"
-      } 
-      px-4 md:px-6 py-4 
-      border-b bg-white 
-      z-50
-    `}
+          w-full
+          ${
+            isScrolled
+              ? "fixed top-0 left-0 right-0 backdrop-blur-md bg-white/80 shadow-lg animate-slideDown"
+              : "relative bg-transparent"
+          } 
+          px-6 py-4
+          transition-all duration-300 ease-in-out
+          z-50
+        `}
       >
-        <div className="flex items-center justify-between w-full">
-          {/* Logo Section */}
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          {/* Logo Section - Left aligned */}
           <div
-            className="flex items-center cursor-pointer hover:opacity-80 transition-opacity"
+            className="flex items-center cursor-pointer group"
             onClick={() => {
               navigate("/homepage");
               closeMobileMenu();
             }}
           >
-            <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center">
-              <span className="text-white font-bold">VGM</span>
+            <div className="w-12 h-12 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-xl flex items-center justify-center transform group-hover:rotate-6 transition-all duration-300">
+              <span className="text-white font-bold text-xl">VGM</span>
             </div>
-            <span className="ml-3 text-lg font-semibold text-gray-900">
+            <span className="ml-3 text-lg font-semibold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent group-hover:scale-105 transition-transform">
               VGM Education
             </span>
           </div>
 
-          {/* Mobile Menu Button */}
-          <div className="flex items-center gap-4 md:hidden">
-            <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="p-2 text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              {isMobileMenuOpen ? (
-                <X className="w-6 h-6" />
-              ) : (
-                <Menu className="w-6 h-6" />
-              )}
-            </button>
-          </div>
-
-          {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center justify-center flex-1 px-8">
+          {/* Desktop Navigation - Center */}
+          <div className="hidden md:flex items-center justify-center">
             <div className="flex items-center space-x-8">
-              <div className="relative group">
+              {[
+                { text: "Trang chủ", path: "/homepage" },
+                { text: "Câu chuyện", path: "/story" },
+                { text: "Bài học", path: "/lessonGrid" },
+                { text: "Đề kiểm tra", path: "/exam" },
+              ].map((item, index) => (
                 <button
-                  onClick={() => navigate("/homepage")}
-                  className={`transition-colors py-2 border-b-2 ${
-                    isActiveLink("/homepage")
-                      ? "text-purple-600 border-purple-600"
-                      : "text-gray-700 border-transparent hover:text-purple-600 hover:border-purple-600"
-                  }`}
+                  key={index}
+                  onClick={() => navigate(item.path)}
+                  className={`relative px-3 py-2 text-base font-medium transition-colors
+         ${
+           isActiveLink(item.path)
+             ? "text-purple-600"
+             : "text-gray-700 hover:text-purple-600"
+         }
+         before:content-['']
+         before:absolute 
+         before:bottom-0
+         before:left-0
+         before:w-full
+         before:h-0.5
+         before:bg-gradient-to-r
+         before:from-purple-600
+         before:to-indigo-600
+         before:transform
+         before:scale-x-0
+         before:transition-transform
+         before:duration-300
+         hover:before:scale-x-100
+       `}
                 >
-                  Trang chủ
+                  {item.text}
                 </button>
-                {/* Desktop About Dropdown */}
-                <div className="absolute left-0 top-full mt-1 w-[500px] bg-[#f7f4f0] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50">
-                  <div className="py-4 flex">
-                    {aboutMenuItems.map((column, columnIndex) => (
-                      <div key={columnIndex} className="flex-1 px-8">
-                        {column.items.map((item, itemIndex) => (
-                          <a
-                            key={itemIndex}
-                            href={item.link}
-                            className="block py-3 text-sm hover:text-purple-600 text-gray-800 font-medium transition-colors"
-                          >
-                            {item.label}
-                          </a>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <button
-                onClick={() => navigate("/story")}
-                className={`transition-colors py-2 border-b-2 ${
-                  isActiveLink("/story")
-                    ? "text-purple-600 border-purple-600"
-                    : "text-gray-700 border-transparent hover:text-purple-600 hover:border-purple-600"
-                }`}
-              >
-                Câu chuyện
-              </button>
-
-              <button
-                onClick={() => navigate("/lessonGrid")}
-                className={`transition-colors py-2 border-b-2 ${
-                  isActiveLink("/lessonGrid")
-                    ? "text-purple-600 border-purple-600"
-                    : "text-gray-700 border-transparent hover:text-purple-600 hover:border-purple-600"
-                }`}
-              >
-                Bài học
-              </button>
-
-              <button
-                onClick={() => navigate("/exam")}
-                className={`transition-colors py-2 border-b-2 ${
-                  isActiveLink("/exam")
-                    ? "text-purple-600 border-purple-600"
-                    : "text-gray-700 border-transparent hover:text-purple-600 hover:border-purple-600"
-                }`}
-              >
-                Đề thi
-              </button>
+              ))}
             </div>
           </div>
-
-          {/* Desktop User Controls */}
-          <div className="hidden md:flex items-center space-x-4">
+          {/* Desktop User Controls - Right aligned */}
+          <div className="hidden md:flex items-center space-x-6">
             <button
               onClick={() => navigate("/classroomManagement")}
-              className={`group relative px-4 py-2 bg-white text-gray-800 border border-gray-300 hover:bg-purple-600 hover:text-white hover:border-transparent transition-all duration-300 rounded flex items-center ${
-                isActiveLink("/classroomManagement") ? "bg-purple-600" : ""
-              }`}
+              className={`
+                relative overflow-hidden px-6 py-2.5
+                bg-gradient-to-r from-purple-600 to-indigo-600
+                text-white rounded-lg
+                transform hover:scale-105
+                transition-all duration-300
+                before:content-['']
+                before:absolute
+                before:top-0
+                before:left-0
+                before:w-full
+                before:h-full
+                before:bg-gradient-to-r
+                before:from-purple-700
+                before:to-indigo-700
+                before:opacity-0
+                before:transition-opacity
+                before:duration-300
+                hover:before:opacity-100
+                shadow-md
+              `}
             >
-              Lớp học
-              <span className="ml-2 group-hover:translate-x-1 transition-transform duration-300">
-                →
+              <span className="relative z-10 flex items-center">
+                Lớp học
+                <svg
+                  className="w-4 h-4 ml-2 transform group-hover:translate-x-1 transition-transform"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M13 7l5 5m0 0l-5 5m5-5H6"
+                  />
+                </svg>
               </span>
             </button>
 
-            {/* Desktop User Dropdown */}
+            {/* User Dropdown - Updated Style */}
             <div className="relative group">
-              <button className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 transition-colors">
-                <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
-                  <span className="text-sm font-medium text-gray-600">
-                    {userData.name[0] || "U"}
-                  </span>
+              <button className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-lg flex items-center justify-center text-white font-medium transform group-hover:rotate-6 transition-transform">
+                  {userData.name[0] || "U"}
                 </div>
                 <span className="text-sm font-medium text-gray-700">
                   {userData.name || "User"}
                 </span>
               </button>
 
-              <div className="absolute right-0 top-full mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+              {/* Dropdown Menu - Updated Style */}
+              <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-xl border border-gray-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform group-hover:translate-y-0 translate-y-2">
                 <div className="p-4 border-b border-gray-100">
                   <p className="text-sm font-medium text-gray-900">
                     {userData.name}
@@ -261,6 +236,18 @@ const Navigation = () => {
               </div>
             </div>
           </div>
+
+          {/* Mobile Menu Button - Updated Style */}
+          <button
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="p-2 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors md:hidden"
+          >
+            {isMobileMenuOpen ? (
+              <X className="w-6 h-6" />
+            ) : (
+              <Menu className="w-6 h-6" />
+            )}
+          </button>
         </div>
 
         {/* Mobile Menu */}
@@ -283,22 +270,6 @@ const Navigation = () => {
                     }`}
                   />
                 </button>
-                {isAboutDropdownOpen && (
-                  <div className="pl-4 space-y-2 mt-2">
-                    {aboutMenuItems.map((column) =>
-                      column.items.map((item, index) => (
-                        <a
-                          key={index}
-                          href={item.link}
-                          className="block p-2 text-gray-600 hover:text-purple-600 transition-colors"
-                          onClick={closeMobileMenu}
-                        >
-                          {item.label}
-                        </a>
-                      ))
-                    )}
-                  </div>
-                )}
               </div>
 
               <button
@@ -332,7 +303,7 @@ const Navigation = () => {
                   isActiveLink("story") ? "text-purple-600" : "text-gray-700"
                 }`}
               >
-                Đề thi
+                Đề kiểm tra
               </button>
 
               <div className="pt-4 border-t border-gray-200">
@@ -375,8 +346,6 @@ const Navigation = () => {
             </div>
           </div>
         )}
-
-        {/* Search Modal */}
       </nav>
     </div>
   );

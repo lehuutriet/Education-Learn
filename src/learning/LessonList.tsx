@@ -126,87 +126,79 @@ const FullScreenModal: React.FC<FullScreenModalProps> = ({
 
   return (
     <>
-      <div className="fixed inset-0 bg-black bg-opacity-50 z-50">
+      <div className="fixed inset-0 bg-gray-900/95 backdrop-blur-sm z-50">
         <div className="h-screen w-full flex flex-col">
           {/* Header */}
-          <div className="h-16 bg-gray-800 flex items-center px-4 justify-between text-white">
-            <div className="flex items-center">
+          <div className="h-16 bg-gradient-to-r from-blue-600 to-blue-800 flex items-center px-6 justify-between text-white">
+            <div className="flex items-center space-x-4">
               <button
                 onClick={onClose}
-                className="flex items-center hover:text-gray-300"
+                className="hover:bg-white/10 p-2 rounded-full transition-colors"
               >
-                <MoveLeft className="w-5 h-5 mr-2" />
+                <MoveLeft className="w-5 h-5" />
               </button>
-              <h1 className="text-3xl font-bold text-900">{lesson.title}</h1>
+              <h1 className="text-2xl font-bold">{lesson?.title}</h1>
             </div>
-            <h1>
-              Slide {currentSlide + 1}/{lesson.slides.length}
-            </h1>
-            <div className="flex items-center space-x-6">
-              <div className="flex items-center space-x-4">
-                <button
-                  onClick={startPresentation}
-                  className="px-3 py-1 bg-blue-600 rounded-md hover:bg-blue-700 flex items-center gap-2"
-                >
-                  <Play className="w-4 h-4" />
-                  Trình chiếu
-                </button>
-                <button
-                  onClick={() => handleDownload(lesson)}
-                  className="px-3 py-1 bg-green-600 rounded-md hover:bg-green-700 flex items-center gap-2"
-                >
-                  <Download className="w-4 h-4" />
-                  Tải xuống
-                </button>
-              </div>
+
+            <div className="flex items-center space-x-4">
+              <span className="text-sm">
+                Slide {currentSlide + 1}/{lesson?.slides.length}
+              </span>
+              <button
+                onClick={startPresentation}
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors flex items-center gap-2"
+              >
+                <Play className="w-4 h-4" />
+                Trình chiếu
+              </button>
+              <button
+                onClick={() => handleDownload(lesson)}
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors flex items-center gap-2"
+              >
+                <Download className="w-4 h-4" />
+                Tải xuống
+              </button>
             </div>
           </div>
 
-          {/* Main content */}
+          {/* Main content area with updated styling */}
           <div className="flex-1 flex">
-            {/* Main content */}
-            <div className="flex flex-1">
-              {/* Sidebar */}
-              <div className="w-64 bg-gray-800">
-                <SlideThumbnails
-                  slides={lesson.slides}
-                  currentSlide={currentSlide}
-                  onSlideClick={setCurrentSlide}
-                />
-              </div>
+            <div className="w-72 bg-gray-900">
+              <SlideThumbnails
+                slides={lesson.slides}
+                currentSlide={currentSlide}
+                onSlideClick={setCurrentSlide}
+              />
+            </div>
 
-              {/* Main Content */}
-              <div className="flex-1 bg-white flex flex-col">
-                <SlidePreview slide={lesson.slides[currentSlide]} />
-                {/* Navigation controls */}
-                <div className="h-16 border-t flex items-center justify-between px-8">
-                  <button
-                    onClick={() =>
-                      setCurrentSlide((prev) => Math.max(0, prev - 1))
-                    }
-                    disabled={currentSlide === 0}
-                    className="px-4 py-2 bg-gray-800 text-white rounded-lg disabled:opacity-50"
-                  >
-                    Slide trước
-                  </button>
-                  <button
-                    onClick={() =>
-                      setCurrentSlide((prev) =>
-                        Math.min(lesson.slides.length - 1, prev + 1)
-                      )
-                    }
-                    disabled={currentSlide === lesson.slides.length - 1}
-                    className="px-4 py-2 bg-gray-800 text-white rounded-lg disabled:opacity-50"
-                  >
-                    Slide tiếp theo
-                  </button>
-                </div>
+            <div className="flex-1 bg-white flex flex-col">
+              <SlidePreview slide={lesson?.slides[currentSlide]} />
+              <div className="h-20 border-t flex items-center justify-between px-8 bg-gray-50">
+                <button
+                  onClick={() =>
+                    setCurrentSlide((prev) => Math.max(0, prev - 1))
+                  }
+                  disabled={currentSlide === 0}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-full disabled:opacity-50 transition-all hover:bg-blue-700"
+                >
+                  Slide trước
+                </button>
+                <button
+                  onClick={() =>
+                    setCurrentSlide((prev) =>
+                      Math.min(lesson.slides.length - 1, prev + 1)
+                    )
+                  }
+                  disabled={currentSlide === (lesson?.slides.length || 1) - 1}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-full disabled:opacity-50 transition-all hover:bg-blue-700"
+                >
+                  Slide tiếp theo
+                </button>
               </div>
             </div>
           </div>
         </div>
       </div>
-
       {/* Thêm PresentationMode */}
       {isPresentationMode && (
         <PresentationMode
@@ -342,129 +334,113 @@ const LessonList = () => {
   });
 
   return (
-    <div className="flex-1 bg-gray-50">
-      <div className="p-4 sm:p-8">
-        {" "}
-        {/* Giảm padding trên mobile */}
-        <div className="mb-4 sm:mb-8">
-          {/* Header */}
-          <div className="bg-orange-500 px-4 py-2">
-            <span className="text-white font-bold">LỚP</span>
-          </div>
-          {/* Grade navigation */}
-
-          <div className="bg-white shadow-sm rounded-b-lg">
-            {/* Desktop view */}
-            <div className="hidden md:flex overflow-x-auto">
-              <div className="flex min-w-max">
-                {grades.map((grade) => (
-                  <button
-                    key={grade.id}
-                    onClick={() => setSelectedGrade(grade.id)}
-                    className={`whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors
-            ${
-              selectedGrade === grade.id
-                ? "text-orange-500 border-b-2 border-orange-500"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-                  >
-                    {grade.name}
-                  </button>
-                ))}
+    <div className="min-h-screen bg-gray-50">
+      {/* Hero section */}
+      <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white py-8">
+        <div className="container mx-auto px-4">
+          <h1 className="text-3xl font-bold mb-4">Thư viện bài giảng</h1>
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Tìm kiếm bài giảng..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full px-5 py-3 pr-12 rounded-full text-gray-900 focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                />
+                <Search
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"
+                  size={20}
+                />
               </div>
             </div>
-
-            {/* Mobile view */}
-            <div className="md:hidden p-2">
-              <select
-                value={selectedGrade}
-                onChange={(e) => setSelectedGrade(Number(e.target.value))}
-                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-orange-500"
-              >
-                {grades.map((grade) => (
-                  <option key={grade.id} value={grade.id}>
-                    {grade.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
-        <div className="flex flex-col sm:flex-row gap-4 mb-4">
-          {/* Subject filter */}
-          <div className="w-full sm:w-48">
             <select
               value={selectedSubject}
               onChange={(e) => setSelectedSubject(e.target.value)}
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-5 py-3 rounded-full bg-white text-gray-900 border-white/20 focus:outline-none"
             >
-              <option value="Tất cả">Tất cả</option>
+              <option value="Tất cả">Tất cả môn học</option>
               <option value="Tiếng Việt">Tiếng Việt</option>
               <option value="Toán">Toán</option>
               <option value="Tiếng Anh">Tiếng Anh</option>
               <option value="Ngôn ngữ kí hiệu">Ngôn ngữ kí hiệu</option>
             </select>
           </div>
+        </div>
+      </div>
 
-          {/* Search input */}
-
-          <div className="w-full relative">
-            <input
-              type="text"
-              placeholder="Nhập tên bài giảng cần tìm"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-4 py-2 pr-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-              <Search size={20} />
-            </div>
+      {/* Grade selection */}
+      <div className="bg-white shadow-sm sticky top-0 z-10">
+        <div className="container mx-auto px-4">
+          <div className="flex overflow-x-auto py-2 gap-2">
+            {grades.map((grade) => (
+              <button
+                key={grade.id}
+                onClick={() => setSelectedGrade(grade.id)}
+                className={`px-6 py-2 rounded-full whitespace-nowrap transition-all
+                  ${
+                    selectedGrade === grade.id
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  }`}
+              >
+                {grade.name}
+              </button>
+            ))}
           </div>
         </div>
       </div>
 
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* Lessons grid */}
+      <div className="container mx-auto px-4 py-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {filteredLectures.map((lecture) => (
             <div
               key={lecture.id}
-              className="bg-white rounded-lg shadow overflow-hidden"
+              className="bg-white rounded-2xl shadow-md overflow-hidden hover:shadow-lg transition-shadow"
             >
-              <img
-                src={lecture.thumbnailUrl || "/api/placeholder/400/200"}
-                alt=""
-                className="w-full h-48 object-cover"
-              />
-
-              <div className="p-4">
-                <h3 className="font-medium text-lg mb-2">{lecture.title}</h3>
-                <div className="flex items-center text-sm text-gray-500 mb-4">
-                  <span className="mr-4 text-sm px-2 py-1 rounded-full bg-green-100">
-                    {lecture.subject}
-                  </span>
-                  <span className="mr-4 text-sm px-2 py-1 rounded-full bg-blue-100">
-                    {lecture.grade}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between mt-4">
+              <div className="relative group">
+                <img
+                  src={lecture.thumbnailUrl || "/api/placeholder/400/200"}
+                  alt=""
+                  className="w-full h-48 object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
                     onClick={() => setQuickViewLesson(lecture)}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                    className="absolute bottom-4 left-4 flex items-center gap-2 px-4 py-2 bg-white/90 text-gray-900 rounded-full hover:bg-white"
                   >
                     <Eye className="w-4 h-4" />
                     Xem nhanh
                   </button>
                 </div>
               </div>
+              <div className="p-4">
+                <h3 className="font-semibold text-lg mb-2 line-clamp-2">
+                  {lecture.title}
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  <span className="px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-700">
+                    {lecture.subject}
+                  </span>
+                  <span className="px-3 py-1 rounded-full text-sm bg-green-100 text-green-700">
+                    {lecture.grade}
+                  </span>
+                </div>
+              </div>
             </div>
           ))}
         </div>
       </div>
-      <FullScreenModal
-        lesson={quickViewLesson}
-        onClose={() => setQuickViewLesson(null)}
-      />
+
+      {/* Modals */}
+      {quickViewLesson && (
+        <FullScreenModal
+          lesson={quickViewLesson}
+          onClose={() => setQuickViewLesson(null)}
+        />
+      )}
       {isPresentationMode && quickViewLesson && (
         <PresentationMode
           slides={quickViewLesson.slides}

@@ -68,15 +68,8 @@ const addUsers = async ({ req, res, log, error }) => {
   try {
     log(`Received request body: ${JSON.stringify(req.body)}`);
 
-    // Parse the body if it's a string
-    const parsedBody =
-      typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-
-    const { email, password, name, phone } = parsedBody;
-
-    log(
-      `Parsed data: email=${email}, name=${name}, phone=${phone} ,password=${password}`
-    );
+    const parsedBody = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    const { email, password, name, phone, labels } = parsedBody;
 
     if (!email || !password || !name) {
       log('Missing required fields');
@@ -86,31 +79,47 @@ const addUsers = async ({ req, res, log, error }) => {
       });
     }
 
-    log(
-      `Attempting to create user: email=${email}, name=${name}, phone=${phone},password=${password}`
+    log(`Attempting to create user: email=${email}, name=${name}, phone=${phone}, labels=${JSON.stringify(labels)}`);
+    
+    // Tạo user
+    const newUser = await users.create(
+      ID.unique(),
+      email,
+      phone || '',
+      password,
+      name
     );
-    const userId = ID.unique();
-    const addUser = await users.create(userId, email,phone, password, name);
-    log(`User created: ${JSON.stringify(addUser)}`);
 
-    if (phone) {
-      log(`Updating phone for user ${userId}`);
-      await users.updatePhone(userId, phone);
+    // Cập nhật labels ngay sau khi tạo user
+    if (labels && labels.length > 0) {
+      await users.updateLabels(newUser.$id, labels);
+      // Fetch lại user để lấy thông tin mới nhất
+      const updatedUser = await users.get(newUser.$id);
+      return res.json({
+        status: 'success',
+        message: 'User added successfully',
+        user: {
+          id: updatedUser.$id,
+          email: updatedUser.email,
+          phone: updatedUser.phone,
+          name: updatedUser.name,
+          labels: updatedUser.labels
+        }
+      });
     }
-
-    const userData = {
-      id: addUser.$id,
-      email: addUser.email,
-      phone: phone || addUser.phone,
-      name: addUser.name,
-    };
-    log(`User data to be sent:, ${JSON.stringify(userData)}`);
 
     return res.json({
       status: 'success',
       message: 'User added successfully',
-      user: userData,
+      user: {
+        id: newUser.$id,
+        email: newUser.email,
+        phone: newUser.phone,
+        name: newUser.name,
+        labels: newUser.labels
+      }
     });
+
   } catch (err) {
     error(`Failed to add user: ${JSON.stringify(err)}`);
     return res.json({
@@ -120,7 +129,6 @@ const addUsers = async ({ req, res, log, error }) => {
     });
   }
 };
-
 const deleteUser = async ({ req, res, log, error }) => {
   try {
     log(`Received delete request: ${JSON.stringify(req)}`);

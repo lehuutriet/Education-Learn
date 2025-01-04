@@ -14,16 +14,17 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const { isAuthenticated, checkAuthStatus, userRole } = useAuth();
   const navigate = useNavigate();
 
+  // Trong protectedRoute.tsx
   useEffect(() => {
     const verifyAuth = async () => {
       try {
         await checkAuthStatus();
       } catch (error) {
-        console.error("Auth check failed:", error);
+        // Lưu current path
+        localStorage.setItem("lastPath", window.location.pathname);
         navigate("/", { replace: true });
       }
     };
-
     verifyAuth();
   }, [checkAuthStatus, navigate]);
 
