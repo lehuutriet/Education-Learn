@@ -39,7 +39,6 @@ const createRecovery = async (req, res, log, error) => {
 // Function to list users
 const listUsers = async ({ req, res, log, error }) => {
   try {
-    // Assuming 'users' is an instance of the Appwrite Users service
     const userList = await users.list();
     log('User list retrieved:', userList);
 
@@ -51,17 +50,13 @@ const listUsers = async ({ req, res, log, error }) => {
       phone: user.phone,
       registration: user.registration,
       accessedAt: user.lastLogin,
-      labels: user.labels, // Add this line
+      labels: user.labels,
     }));
 
-    log(JSON.stringify(userData));
-    return res.json(userData);
+    return userData; // Changed to return userData directly
   } catch (err) {
     error('Failed to list users:', err.message);
-    return res.status(500).json({
-      status: 'error',
-      message: 'Failed to list users.',
-    });
+    throw err; // Throw error to be handled by caller
   }
 };
 const addUsers = async ({ req, res, log, error }) => {

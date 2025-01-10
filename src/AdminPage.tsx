@@ -23,7 +23,7 @@ import Exercise from "./Management/exercise";
 import PhoneInput from "react-phone-input-2";
 import "react-phone-input-2/lib/style.css";
 import { toast } from "react-hot-toast";
-
+import SpeakingListening from "./Management/Listening";
 interface User {
   id: string;
   name: string;
@@ -500,6 +500,16 @@ const AdminPage = () => {
             >
               Quản lý bài giảng
             </button>
+            <button
+              onClick={() => setActiveTab("speakinglistening")}
+              className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === "speakinglistening"
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              Luyện nghe và viết
+            </button>
           </div>
         </div>
 
@@ -731,6 +741,7 @@ const AdminPage = () => {
         {activeTab === "files" && <Exercise />}
         {activeTab === "questions" && <QuestionCreator />}
         {activeTab === "lecture" && <LectureManagement />}
+        {activeTab === "speakinglistening" && <SpeakingListening />}
         {/* User Modal */}
         {isModalOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

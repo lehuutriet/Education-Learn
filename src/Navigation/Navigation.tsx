@@ -3,7 +3,8 @@ import { X, Menu, ChevronDown } from "lucide-react";
 import { useAuth } from "../contexts/auth/authProvider";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "react-hot-toast";
-
+import UserProfileModal from "./UserProfileModal";
+import NotificationComponent from "./Notification";
 const Navigation = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isAboutDropdownOpen, setIsAboutDropdownOpen] = useState(false);
@@ -11,9 +12,13 @@ const Navigation = () => {
   const { account } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [userData, setUserData] = useState({ name: "", email: "" });
+  const [userData, setUserData] = useState({
+    name: "",
+    email: "",
+    avatarUrl: "",
+  });
   const [isAdmin, setIsAdmin] = useState(false);
-
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   // Handle scroll
   useEffect(() => {
     const handleScroll = () => {
@@ -31,14 +36,25 @@ const Navigation = () => {
         setUserData({
           name: user.name || "",
           email: user.email || "",
+          avatarUrl: user.prefs?.avatarUrl || "",
         });
       } catch (error) {
         console.error("Error fetching user data:", error);
       }
     };
-    getUserData();
-  }, [account]);
 
+    getUserData();
+
+    // Lắng nghe sự kiện cập nhật
+    const handleUserUpdate = () => {
+      getUserData();
+    };
+    window.addEventListener("userUpdated", handleUserUpdate);
+
+    return () => {
+      window.removeEventListener("userUpdated", handleUserUpdate);
+    };
+  }, [account]);
   const handleAdminNav = () => {
     navigate("/admin");
     setIsMobileMenuOpen(false);
@@ -106,7 +122,7 @@ const Navigation = () => {
           </div>
 
           {/* Desktop Navigation - Center */}
-          <div className="hidden md:flex items-center justify-center">
+          <div className="hidden md:flex  items-center justify-center">
             <div className="flex items-center space-x-8">
               {[
                 { text: "Trang chủ", path: "/homepage" },
@@ -118,26 +134,26 @@ const Navigation = () => {
                   key={index}
                   onClick={() => navigate(item.path)}
                   className={`relative px-3 py-2 text-base font-medium transition-colors
-         ${
-           isActiveLink(item.path)
-             ? "text-purple-600"
-             : "text-gray-700 hover:text-purple-600"
-         }
-         before:content-['']
-         before:absolute 
-         before:bottom-0
-         before:left-0
-         before:w-full
-         before:h-0.5
-         before:bg-gradient-to-r
-         before:from-purple-600
-         before:to-indigo-600
-         before:transform
-         before:scale-x-0
-         before:transition-transform
-         before:duration-300
-         hover:before:scale-x-100
-       `}
+                  ${
+                    isActiveLink(item.path)
+                      ? "text-purple-600"
+                      : "text-gray-700 hover:text-purple-600"
+                  }
+                  before:content-['']
+                  before:absolute 
+                  before:bottom-0
+                  before:left-0
+                  before:w-full
+                  before:h-0.5
+                  before:bg-gradient-to-r
+                  before:from-purple-600
+                  before:to-indigo-600
+                  before:transform
+                  before:scale-x-0
+                  before:transition-transform
+                  before:duration-300
+                  hover:before:scale-x-100
+                `}
                 >
                   {item.text}
                 </button>
@@ -146,6 +162,13 @@ const Navigation = () => {
           </div>
           {/* Desktop User Controls - Right aligned */}
           <div className="hidden md:flex items-center space-x-6">
+            <button
+              onClick={() => navigate("/feedback")}
+              className="px-4 py-2 text-gray-700 hover:text-purple-600 transition-colors flex items-center gap-2"
+            >
+              <i className="ri-feedback-line text-lg"></i>
+              Hỗ Trợ
+            </button>
             <button
               onClick={() => navigate("/classroomManagement")}
               className={`
@@ -191,15 +214,31 @@ const Navigation = () => {
             {/* User Dropdown - Updated Style */}
             <div className="relative group">
               <button className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
-                <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-lg flex items-center justify-center text-white font-medium transform group-hover:rotate-6 transition-transform">
-                  {userData.name[0] || "U"}
+                <div className="w-10 h-10 rounded-lg overflow-hidden">
+                  {userData.avatarUrl ? (
+                    <img
+                      src={userData.avatarUrl}
+                      alt={userData.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center text-white font-medium">
+                      {userData.name[0] || "U"}
+                    </div>
+                  )}
                 </div>
                 <span className="text-sm font-medium text-gray-700">
                   {userData.name || "User"}
                 </span>
               </button>
-
+              {isProfileModalOpen && (
+                <UserProfileModal
+                  isOpen={isProfileModalOpen}
+                  onClose={() => setIsProfileModalOpen(false)}
+                />
+              )}
               {/* Dropdown Menu - Updated Style */}
+
               <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-xl border border-gray-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform group-hover:translate-y-0 translate-y-2">
                 <div className="p-4 border-b border-gray-100">
                   <p className="text-sm font-medium text-gray-900">
@@ -208,29 +247,54 @@ const Navigation = () => {
                   <p className="text-sm text-gray-500">{userData.email}</p>
                 </div>
                 <div className="py-2">
-                  <a
-                    href="#"
-                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  {/* Thêm mục thiết lập thông tin người dùng */}
+                  <button
+                    onClick={() => setIsProfileModalOpen(true)}
+                    className="w-full flex items-center px-4 py-3 text-gray-700 hover:bg-purple-50 
+                    rounded-lg transition-colors group/item"
                   >
-                    Notifications
-                  </a>
+                    <i className="ri-user-settings-line text-lg text-gray-400 group-hover/item:text-purple-600 mr-3"></i>
+                    <span className="text-sm font-medium">
+                      Thông tin cá nhân
+                    </span>
+                  </button>
+
+                  <button
+                    className="w-full flex items-center px-4 py-3 text-gray-700 hover:bg-purple-50 
+                  rounded-lg transition-colors group/item"
+                  >
+                    <i className="ri-notification-3-line text-lg text-gray-400 group-hover/item:text-purple-600 mr-3"></i>
+                    <span className="text-sm font-medium">Thông báo</span>{" "}
+                    <NotificationComponent />
+                    {/* <span className="ml-auto bg-purple-100 text-purple-600 text-xs font-medium px-2 py-1 rounded-full"></span> */}
+                  </button>
                 </div>
-                <div className="border-t border-gray-100">
-                  {isAdmin && (
+
+                {/* Admin Section */}
+                {isAdmin && (
+                  <div className="p-2 border-t border-gray-100">
                     <button
                       onClick={handleAdminNav}
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      className="w-full flex items-center px-4 py-3 text-gray-700 hover:bg-purple-50 
+                      rounded-lg transition-colors group/item"
                     >
-                      Trang Quản trị viên
+                      <i className="ri-admin-line text-lg text-gray-400 group-hover/item:text-purple-600 mr-3"></i>
+                      <span className="text-sm font-medium">
+                        Trang Quản trị viên
+                      </span>
                     </button>
-                  )}
-                </div>
-                <div className="border-t border-gray-100">
+                  </div>
+                )}
+
+                {/* Logout Section */}
+                <div className="p-2 border-t border-gray-100">
                   <button
                     onClick={handleLogout}
-                    className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-50 transition-colors"
+                    className="w-full flex items-center px-4 py-3 text-red-600 hover:bg-red-50 
+                    rounded-lg transition-colors group/item"
                   >
-                    Sign out
+                    <i className="ri-logout-box-line text-lg group-hover/item:text-red-600 mr-3"></i>
+                    <span className="text-sm font-medium">Đăng xuất</span>
                   </button>
                 </div>
               </div>
@@ -328,17 +392,21 @@ const Navigation = () => {
                   <p className="font-medium text-gray-900">{userData.name}</p>
                   <p className="text-sm text-gray-500">{userData.email}</p>
                 </div>
+                {/* Thêm mục thiết lập thông tin người dùng cho mobile */}
+                <button className="block w-full px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+                  Thông tin người dùng
+                </button>
                 {isAdmin && (
                   <button
                     onClick={handleAdminNav}
-                    className="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                    className="block w-full px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
                   >
                     Trang Quản trị viên
                   </button>
                 )}
                 <button
                   onClick={handleLogout}
-                  className="block w-full p-2 text-left text-red-600 hover:bg-gray-50 transition-colors"
+                  className="block w-full px-4 py-2 text-sm text-red-600 hover:bg-gray-50 transition-colors"
                 >
                   Sign out
                 </button>

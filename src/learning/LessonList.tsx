@@ -338,7 +338,7 @@ const LessonList = () => {
       {/* Hero section */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white py-8">
         <div className="container mx-auto px-4">
-          <h1 className="text-3xl font-bold mb-4">Thư viện bài giảng</h1>
+          <h1 className="text-3xl font-bold mb-4">Bài giảng</h1>
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1">
               <div className="relative">

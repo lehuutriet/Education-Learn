@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "./authProvider";
 import IconEdu from "../../image/IconEdu.jpg";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react"; // Import Eye icons
 
 const Login: React.FC = () => {
@@ -261,12 +261,12 @@ const Login: React.FC = () => {
                     Remember me
                   </label>
                 </div>
-                <a
-                  href="/forgot-password"
+                <Link
+                  to="/forgot-password"
                   className="text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline transition-all duration-200"
                 >
                   Quên Mật Khẩu?
-                </a>
+                </Link>
               </div>
 
               <button

@@ -4,6 +4,7 @@ import Navigation from "../Navigation/Navigation";
 import { Play, Video, Music, Book } from "lucide-react";
 import { useDataCache } from "../contexts/auth/DataCacheProvider";
 import EducationalFooter from "../EducationalFooter/EducationalFooter";
+import { Query } from "appwrite";
 
 interface UploadedFile {
   $id: string;
@@ -39,31 +40,29 @@ const Story = () => {
 
       setIsLoading(true);
       try {
+        // Thêm query để lọc theo contentType="story"
         const response = await databases.listDocuments(
           DATABASE_ID,
-          FILES_COLLECTION_ID
+          FILES_COLLECTION_ID,
+          [
+            Query.equal("contentType", "story"), // Thêm điều kiện này
+          ]
         );
 
         const files = response.documents.map((doc) => ({
           $id: doc.$id,
           name: doc.name,
-          fileId: doc.fileId, // Lấy fileId từ document
+          fileId: doc.fileId,
           bucketId: doc.bucketId,
           type: doc.type,
         }));
 
-        // Lọc files theo loại
+        // Lọc theo định dạng file
         const filteredFiles = files.filter((file) => {
-          const fileName = file.name.toLowerCase();
           if (selectedType === "Video") {
-            return fileName.endsWith(".mp4");
+            return file.type.startsWith("video/"); // Lọc các file video
           } else {
-            return (
-              fileName.endsWith(".mp3") &&
-              (fileName.includes("ke chuyen") ||
-                fileName.includes("kể chuyện") ||
-                fileName.includes("ke_chuyen"))
-            );
+            return file.type.startsWith("audio/"); // Lọc các file audio
           }
         });
 
@@ -100,9 +99,9 @@ const Story = () => {
   }, [fileUrl]);
 
   const formatFileName = (name: string) => {
-    return name.replace(/\.[^/.]+$/, "");
+    // Loại bỏ đuôi file và _HTS
+    return name.replace(/\..*$/, "").replace("_HTS", "");
   };
-
   const renderMediaPlayer = () => {
     if (!fileUrl || !selectedFile) return null;
 

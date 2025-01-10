@@ -8,10 +8,13 @@ import PageNotFound from "./pageNotFound";
 import ExamManagement from "../Education/ExamManagement";
 import Exercise from "../Management/exercise";
 import Register from "../contexts/auth/Register";
+import ForgotPassword from "../contexts/auth/ForgotPassword";
 import ClassroomPage from "../Classroom/ClassroomPage";
 import ClassroomManagement from "../Classroom/ClassroomManagement";
 import Story from "../Education/Story";
+import ResetPassword from "../contexts/auth/ResetPassword";
 import LessonGrid from "../learning/LessonGrid";
+import FeedbackForm from "../Navigation/Feedback";
 const App = () => {
   return (
     <Suspense
@@ -38,9 +41,17 @@ export const Router = createBrowserRouter([
       },
       {
         path: "/register",
-        element: <Register />, // Không cần bọc trong ProtectedRoute
+        element: <Register />,
       },
-      // Protected routes
+      {
+        path: "/forgot-password",
+        element: <ForgotPassword />,
+      },
+      {
+        path: "/reset-password",
+        element: <ResetPassword />,
+      },
+
       {
         path: "/admin",
         element: (
@@ -59,6 +70,14 @@ export const Router = createBrowserRouter([
         element: (
           <ProtectedRoute>
             <Exercise />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "/feedback",
+        element: (
+          <ProtectedRoute>
+            <FeedbackForm />
           </ProtectedRoute>
         ),
       },

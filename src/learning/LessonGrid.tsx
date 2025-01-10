@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Navigation from "../Navigation/Navigation";
 import {
   Bell,
@@ -14,7 +14,6 @@ import {
 import PronunciationLesson from "./PronunciationLesson";
 import LearningContent from "./LearningContent";
 import LessonDetail from "./LessonList";
-import EducationalFooter from "../EducationalFooter/EducationalFooter";
 
 interface SidebarMenuItemProps {
   icon: React.ReactNode;
@@ -70,6 +69,25 @@ const LessonGrid = () => {
   const [activeTab, setActiveTab] = useState("learning");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isProgressOpen, setIsProgressOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  // Add debouncing to scroll handler
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+
+    const handleScroll = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        setIsScrolled(window.scrollY > 0);
+      }, 10);
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      clearTimeout(timeoutId);
+    };
+  }, []);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -88,7 +106,9 @@ const LessonGrid = () => {
     <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white">
       <Navigation />
 
-      <div className="flex">
+      <div className="flex relative">
+        {" "}
+        {/* Add relative positioning here */}
         {/* Mobile Menu Button */}
         {!isSidebarOpen && (
           <button
@@ -100,26 +120,31 @@ const LessonGrid = () => {
             <Menu className="w-6 h-6 text-gray-700" />
           </button>
         )}
-
         {/* Sidebar */}
         <div
           className={`
-           fixed bg-white w-[300px] h-screen
-           border-r border-gray-100 shadow-lg
-           px-4 py-6 
-           transition-all duration-300 ease-in-out
-           ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}
-           md:translate-x-0 md:relative
-           flex flex-col gap-3
-           z-40
-         `}
+            fixed top-[73px] h-[calc(100vh-73px)] 
+            w-[300px]
+            border-r border-gray-100
+            px-4 py-6 
+            transition-all duration-300 ease-in-out
+            ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}
+            md:translate-x-0
+            flex flex-col gap-3
+            z-40
+            ${
+              isScrolled
+                ? "bg-white/80 backdrop-blur-md shadow-lg"
+                : "bg-transparent"
+            }
+          `}
         >
           {/* Logo area */}
 
           <div className="flex-1 space-y-2">
             <SidebarMenuItem
               icon={<Home className="w-6 h-6" />}
-              label="HỌC"
+              label="BÀI TẬP"
               active={activeTab === "learning"}
               onClick={() => {
                 setActiveTab("learning");
@@ -185,12 +210,10 @@ const LessonGrid = () => {
             </button>
           )}
         </div>
-
-        {/* Main Content */}
-        <div className="flex-1 min-w-0">
+        {/* Add margin to main content to prevent overlap with fixed sidebar */}
+        <div className="flex-1 min-w-0 md:ml-[300px]">
           <div className="w-full">{renderContent()}</div>
         </div>
-
         {/* Overlay for mobile */}
         {(isSidebarOpen || isProgressOpen) && (
           <div
@@ -202,8 +225,6 @@ const LessonGrid = () => {
           />
         )}
       </div>
-
-      <EducationalFooter />
     </div>
   );
 };

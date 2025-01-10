@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Heart, Circle, AlertCircle } from "lucide-react";
+import { Heart, Circle, AlertCircle, Headphones } from "lucide-react";
 import { useAuth } from "../contexts/auth/authProvider";
 import { Models } from "appwrite";
 import { Query } from "appwrite";
@@ -32,7 +32,25 @@ interface LessonExerciseProps {
   ) => void;
   onClose: () => void;
 }
-
+interface WritingListeningContent extends Models.Document {
+  $id: string;
+  title: string;
+  type: "listening" | "writing";
+  level: "beginner" | "intermediate" | "advanced";
+  category: string;
+  description: string;
+  transcript?: string;
+  instructions?: string;
+  fileId: string;
+  bucketId: string;
+  uploadedBy: string;
+  uploadedAt: string;
+  options?: string[];
+  answer?: string;
+  numberOfQuestions?: number;
+  writingTemplate?: string;
+  imageFileId?: string;
+}
 const LessonExercise: React.FC<LessonExerciseProps> = ({
   level,
   lessonId,
@@ -57,7 +75,7 @@ const LessonExercise: React.FC<LessonExerciseProps> = ({
   const { databases, storage } = useAuth();
   const DATABASE_ID = "674e5e7a0008e19d0ef0";
   const QUESTIONS_COLLECTION_ID = "6764ca50000079439b57";
-
+  const WRITINGLISTEN_CONLLECTION_ID = "677ccf910016bee396ad";
   useEffect(() => {
     fetchQuestions();
   }, []);
@@ -107,35 +125,81 @@ const LessonExercise: React.FC<LessonExerciseProps> = ({
   const fetchQuestions = async () => {
     try {
       setLoading(true);
-      // Map level từ tiếng Việt sang tiếng Anh
-      const levelMapping: { [key: string]: string } = {
-        "Cơ bản": "beginner",
-        "Trung cấp": "intermediate",
-        "Nâng cao": "advanced",
-        "Tổng hợp": "all",
-      };
 
-      let questions;
-      if (level === "Tổng hợp") {
-        // Fetch questions from all levels
-        const response = await databases.listDocuments<Question>(
+      // Xác định level cần lọc và loại bài tập
+      let levelToFilter = "";
+      const isListening = level.includes("Luyện nghe");
+      const isWriting = level.includes("Luyện viết");
+
+      if (level.includes("cơ bản")) {
+        levelToFilter = "beginner";
+      } else if (level.includes("trung cấp")) {
+        levelToFilter = "intermediate";
+      } else if (level.includes("nâng cao")) {
+        levelToFilter = "advanced";
+      }
+
+      if (isListening || isWriting) {
+        // Xử lý cho luyện nghe và luyện viết
+        const response = await databases.listDocuments<WritingListeningContent>(
           DATABASE_ID,
-          QUESTIONS_COLLECTION_ID
+          WRITINGLISTEN_CONLLECTION_ID,
+          [
+            Query.equal("type", isListening ? "listening" : "writing"),
+            ...(level.includes("tổng hợp")
+              ? []
+              : [Query.equal("level", levelToFilter)]),
+          ]
         );
-        questions = response.documents;
+
+        // Convert WritingListeningContent thành Question
+        const convertedQuestions = response.documents.map((doc) => ({
+          $id: doc.$id,
+          type: "select",
+          prompt: doc.title || doc.description,
+          options: doc.options || [],
+          answer: doc.answer || "",
+          category: doc.category,
+          level: doc.level,
+          imageId: doc.imageFileId,
+          bucketId: doc.bucketId,
+          fileId: doc.fileId,
+          $createdAt: doc.$createdAt,
+          $updatedAt: doc.$updatedAt,
+          $permissions: doc.$permissions,
+          $collectionId: doc.$collectionId,
+          $databaseId: doc.$databaseId,
+        }));
+
+        // Random và giới hạn số câu
+        const randomizedQuestions = shuffleArray(convertedQuestions).slice(
+          0,
+          100
+        );
+        setQuestions(randomizedQuestions);
       } else {
-        // Fetch questions for specific level
+        // Xử lý cho các level thông thường
+        const levelMapping: { [key: string]: string } = {
+          "Cơ bản": "beginner",
+          "Trung cấp": "intermediate",
+          "Nâng cao": "advanced",
+        };
+
         const response = await databases.listDocuments<Question>(
           DATABASE_ID,
           QUESTIONS_COLLECTION_ID,
-          [Query.equal("level", [levelMapping[level]])]
+          level === "Tổng hợp"
+            ? []
+            : [Query.equal("level", levelMapping[level])]
         );
-        questions = response.documents;
-      }
 
-      // Randomize questions and take 10
-      const randomizedQuestions = shuffleArray([...questions]).slice(0, 10);
-      setQuestions(randomizedQuestions);
+        // Random và giới hạn số câu cho câu hỏi thông thường
+        const randomizedQuestions = shuffleArray(response.documents).slice(
+          0,
+          100
+        );
+        setQuestions(randomizedQuestions);
+      }
     } catch (error) {
       console.error("Error fetching questions:", error);
       setError("Không thể tải câu hỏi");
@@ -162,7 +226,7 @@ const LessonExercise: React.FC<LessonExerciseProps> = ({
       timer = setTimeout(() => {
         setShowFeedback(false);
         setShowContinueButton(true);
-      }, 3000); // 5000ms = 5 giây
+      }, 1000); // 5000ms = 5 giây
     }
 
     // Cleanup function để tránh memory leak
@@ -297,7 +361,6 @@ const LessonExercise: React.FC<LessonExerciseProps> = ({
             </div>
 
             {/* Nút điều hướng */}
-            {/* Nút điều hướng */}
             <div className="flex gap-4 justify-center">
               <button
                 onClick={() => {
@@ -391,7 +454,6 @@ const LessonExercise: React.FC<LessonExerciseProps> = ({
             <div className="text-2xl font-bold mb-8 text-center">
               {questions[currentQuestion].prompt}
             </div>
-
             {/* Show correct answer when wrong */}
             {showAnswer && (
               <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
@@ -401,7 +463,6 @@ const LessonExercise: React.FC<LessonExerciseProps> = ({
                 </p>
               </div>
             )}
-
             {/* Question Image */}
             {questionImage && (
               <div className="mb-8 flex justify-center">
@@ -413,6 +474,52 @@ const LessonExercise: React.FC<LessonExerciseProps> = ({
               </div>
             )}
 
+            {level.includes("Luyện nghe") &&
+              questions[currentQuestion].fileId && (
+                <div className="mb-8 flex justify-center">
+                  <div className="audio-player bg-blue-500 rounded-xl p-4 flex items-center gap-4 text-white">
+                    <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
+                      <Headphones className="w-6 h-6 text-white" />
+                    </div>
+                    <audio
+                      controls
+                      className="hidden"
+                      src={
+                        questions[currentQuestion].bucketId &&
+                        questions[currentQuestion].fileId
+                          ? storage
+                              .getFileView(
+                                questions[currentQuestion].bucketId,
+                                questions[currentQuestion].fileId
+                              )
+                              .toString()
+                          : ""
+                      }
+                      id="questionAudio"
+                      preload="auto" // Thêm preload để load sẵn audio
+                    />
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault(); // Ngăn event bubbling
+                        const audio = document.getElementById(
+                          "questionAudio"
+                        ) as HTMLAudioElement;
+                        if (audio) {
+                          audio
+                            .play()
+                            .catch((err) =>
+                              console.error("Lỗi phát audio:", err)
+                            );
+                        }
+                      }}
+                      className="text-lg font-medium px-4 py-2 hover:bg-blue-600 rounded-lg transition-colors"
+                    >
+                      Nghe câu hỏi
+                    </button>
+                  </div>
+                </div>
+              )}
             {questions[currentQuestion].type === "select" && (
               <div className="grid grid-cols-1 gap-4">
                 {questions[currentQuestion].options?.map((option) => (
@@ -441,7 +548,6 @@ const LessonExercise: React.FC<LessonExerciseProps> = ({
                 ))}
               </div>
             )}
-
             {questions[currentQuestion].type === "translate" && (
               <input
                 type="text"
@@ -488,7 +594,7 @@ const LessonExercise: React.FC<LessonExerciseProps> = ({
               isCorrect ? "bg-green-500 text-white" : "bg-red-500 text-white"
             }`}
           >
-            {isCorrect ? "Chính xác! 🎉" : "Đáp án sai 😢"}
+            {isCorrect ? "Chính xác! 🎉" : "Đáp án sai  😢"}
           </div>
         </div>
       )}
