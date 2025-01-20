@@ -122,7 +122,7 @@ const LearningContent = () => {
 
   const [listeningLevelsState, setListeningLevelsState] =
     useState(listeningLevels);
-  const [unlockedLevels, setUnlockedLevels] = useState<{
+  const [unlockedLevels] = useState<{
     [key: string]: boolean;
   }>(() => {
     const saved = localStorage.getItem("unlockedLevels");
@@ -168,33 +168,23 @@ const LearningContent = () => {
           progressMap[doc.lessonId] = doc.stars;
         });
 
-        // Kiểm tra điều kiện mở khóa cho từng loại
+        // Sửa hàm kiểm tra điều kiện mở khóa
         const checkUnlock = (type: string) => {
           const baseId = type === "normal" ? 0 : type === "writing" ? 5 : 9;
           return [1, 2, 3].every(
-            (id) => progressMap[id + baseId] && progressMap[id + baseId] > 0
+            (id) => (progressMap[id + baseId] || 0) >= 1 // Yêu cầu ít nhất 1 sao
           );
         };
-
-        // Cập nhật trạng thái mở khóa
-        if (checkUnlock("normal")) {
-          setUnlockedLevels((prev) => ({ ...prev, normal: true }));
-        }
-        if (checkUnlock("writing")) {
-          setUnlockedLevels((prev) => ({ ...prev, writing: true }));
-        }
-        if (checkUnlock("listening")) {
-          setUnlockedLevels((prev) => ({ ...prev, listening: true }));
-        }
 
         // Cập nhật lessons thông thường
         const updatedLessons = lessons.map((lesson) => {
           if (lesson.id === 4) {
+            const isUnlocked = checkUnlock("normal");
             return {
               ...lesson,
               isCompleted: !!progressMap[lesson.id],
               stars: progressMap[lesson.id] || 0,
-              isLocked: !checkUnlock("normal") && !unlockedLevels.normal,
+              isLocked: !isUnlocked,
             };
           }
           return {
@@ -206,20 +196,21 @@ const LearningContent = () => {
         setLessons(updatedLessons);
 
         // Cập nhật listening levels
-        const newListeningLevels = listeningLevelsState.map((level, index) => {
+        const updatedListeningLevels = listeningLevelsState.map((level) => {
           if (level.id === 4) {
+            const isUnlocked = checkUnlock("listening");
             return {
               ...level,
-              stars: progressMap[index + 10] || 0,
-              isLocked: !checkUnlock("listening") && !unlockedLevels.listening,
+              stars: progressMap[level.id + 9] || 0,
+              isLocked: !isUnlocked,
             };
           }
           return {
             ...level,
-            stars: progressMap[index + 10] || 0,
+            stars: progressMap[level.id + 9] || 0,
           };
         });
-        setListeningLevelsState(newListeningLevels);
+        setListeningLevelsState(updatedListeningLevels);
       } catch (error) {
         console.error("Error fetching user progress:", error);
       }

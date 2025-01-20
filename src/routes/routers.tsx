@@ -15,6 +15,8 @@ import Story from "../Education/Story";
 import ResetPassword from "../contexts/auth/ResetPassword";
 import LessonGrid from "../learning/LessonGrid";
 import FeedbackForm from "../Navigation/Feedback";
+import Discussion from "../Navigation/Discussion";
+import OnlineClassroom from "../Navigation/OnlineClassroom";
 const App = () => {
   return (
     <Suspense
@@ -62,7 +64,11 @@ export const Router = createBrowserRouter([
       },
       {
         path: "/homepage",
-        element: <HomePage />,
+        element: (
+          <ProtectedRoute>
+            <HomePage />
+          </ProtectedRoute>
+        ),
       },
       // Changed FileViewer to Exercise
       {
@@ -78,6 +84,22 @@ export const Router = createBrowserRouter([
         element: (
           <ProtectedRoute>
             <FeedbackForm />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "/online-classroom",
+        element: (
+          <ProtectedRoute>
+            <OnlineClassroom />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "/discussion",
+        element: (
+          <ProtectedRoute>
+            <Discussion />
           </ProtectedRoute>
         ),
       },

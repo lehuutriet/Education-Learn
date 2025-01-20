@@ -12,6 +12,7 @@ import {
   Upload,
   Eye,
   EyeOff,
+  AlertCircle,
 } from "lucide-react";
 import { ID } from "appwrite";
 
@@ -46,6 +47,9 @@ const Listen = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [optionPreviews, setOptionPreviews] = useState<string[]>([]);
   const [showAnswers, setShowAnswers] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [contentToDelete, setContentToDelete] =
+    useState<WritingListeningContent | null>(null);
 
   const { databases, storage, account } = useAuth();
 
@@ -246,24 +250,38 @@ const Listen = () => {
     }
   };
 
+  // Sửa lại hàm handleDelete
   const handleDelete = async (content: WritingListeningContent) => {
-    if (!window.confirm("Bạn có chắc chắn muốn xóa nội dung này?")) return;
+    setContentToDelete(content);
+    setIsDeleteModalOpen(true);
+  };
+
+  // Thêm hàm confirmDelete để xử lý khi xác nhận xóa
+  const confirmDelete = async () => {
+    if (!contentToDelete) return;
 
     try {
+      setIsLoading(true);
       // Delete main file
-      await storage.deleteFile(content.bucketId, content.fileId);
+      await storage.deleteFile(
+        contentToDelete.bucketId,
+        contentToDelete.fileId
+      );
 
       // Delete image file if exists
-      if (content.imageFileId) {
-        await storage.deleteFile(content.bucketId, content.imageFileId);
+      if (contentToDelete.imageFileId) {
+        await storage.deleteFile(
+          contentToDelete.bucketId,
+          contentToDelete.imageFileId
+        );
       }
 
       // Delete option images if exists
-      if (content.options) {
-        for (const option of content.options) {
+      if (contentToDelete.options) {
+        for (const option of contentToDelete.options) {
           if (option.match(/^[a-zA-Z0-9]{20,}$/)) {
             try {
-              await storage.deleteFile(content.bucketId, option);
+              await storage.deleteFile(contentToDelete.bucketId, option);
             } catch (error) {
               console.error("Error deleting option image:", error);
             }
@@ -274,12 +292,16 @@ const Listen = () => {
       await databases.deleteDocument(
         DATABASE_ID,
         SPEAKING_LISTENING_COLLECTION,
-        content.$id
+        contentToDelete.$id
       );
       await fetchContents();
+      setIsDeleteModalOpen(false);
+      setContentToDelete(null);
     } catch (error) {
       console.error("Error deleting content:", error);
       setError("Không thể xóa nội dung");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -327,10 +349,8 @@ const Listen = () => {
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold">Quản lý bài tập nói và nghe</h1>
-          <p className="text-gray-600">
-            Tạo và quản lý các bài tập luyện nói, nghe
-          </p>
+          <h1 className="text-2xl font-bold">Quản lý bài tập nghe</h1>
+          <p className="text-gray-600">Tạo và quản lý các bài tập luyện nghe</p>
         </div>
         <button
           onClick={() => setIsModalOpen(true)}
@@ -361,7 +381,7 @@ const Listen = () => {
           className="px-4 py-2 border rounded-lg"
         >
           <option value="listening">Luyện nghe</option>
-          <option value="writing">Luyện viết</option>
+          {/* <option value="writing">Luyện viết</option> */}
         </select>
       </div>
 
@@ -682,6 +702,50 @@ const Listen = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {isDeleteModalOpen && contentToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0">
+                <AlertCircle className="h-6 w-6 text-red-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Xác nhận xóa nội dung
+                </h3>
+                <p className="mt-2 text-sm text-gray-500">
+                  Bạn có chắc chắn muốn xóa nội dung này? Hành động này không
+                  thể hoàn tác.
+                </p>
+                <div className="mt-4 flex gap-3 justify-end">
+                  <button
+                    onClick={() => {
+                      setIsDeleteModalOpen(false);
+                      setContentToDelete(null);
+                    }}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    onClick={confirmDelete}
+                    className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700"
+                  >
+                    {isLoading ? (
+                      <div className="flex items-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                        <span>Đang xóa...</span>
+                      </div>
+                    ) : (
+                      "Xóa nội dung"
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

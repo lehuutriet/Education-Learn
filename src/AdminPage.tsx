@@ -24,6 +24,7 @@ import PhoneInput from "react-phone-input-2";
 import "react-phone-input-2/lib/style.css";
 import { toast } from "react-hot-toast";
 import SpeakingListening from "./Management/Listening";
+import GameManagement from "./Management/GameManagement";
 interface User {
   id: string;
   name: string;
@@ -57,6 +58,8 @@ const AdminPage = () => {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("users");
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [userIdToDelete, setUserIdToDelete] = useState<string | null>(null);
   const [formData, setFormData] = useState<UserFormData>({
     name: "",
     email: "",
@@ -318,20 +321,21 @@ const AdminPage = () => {
       setIsLoading(false);
     }
   };
-  // const navigateToHomePage = () => {
-  //   navigate("/homepage");
-  // };
+
   const arraysEqual = (a: string[], b: string[]) => {
     if (a === b) return true;
     if (!a || !b) return false;
     if (a.length !== b.length) return false;
     return a.every((val, index) => val === b[index]);
   };
-  const deleteUser = async (userId: string) => {
-    if (!window.confirm("Bạn có chắc chắn muốn xóa người dùng này?")) {
-      return;
-    }
 
+  // Hàm xử lý khi click nút xóa
+  const handleDeleteClick = (userId: string) => {
+    setUserIdToDelete(userId);
+    setIsDeleteModalOpen(true);
+  };
+
+  const deleteUser = async (userId: string) => {
     setIsLoading(true);
     setError(null);
 
@@ -348,6 +352,8 @@ const AdminPage = () => {
         const result = JSON.parse(response.responseBody);
         if (result.status === "success") {
           await fetchUsers();
+          setIsDeleteModalOpen(false);
+          setUserIdToDelete(null);
         } else {
           throw new Error(result.message || "Không thể xóa người dùng");
         }
@@ -508,7 +514,17 @@ const AdminPage = () => {
                   : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
               }`}
             >
-              Luyện nghe và viết
+              Luyện nghe
+            </button>
+            <button
+              onClick={() => setActiveTab("games")}
+              className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === "games"
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              Quản lý trò chơi
             </button>
           </div>
         </div>
@@ -721,7 +737,7 @@ const AdminPage = () => {
                                 <Edit2 className="w-4 h-4" />
                               </button>
                               <button
-                                onClick={() => deleteUser(user.id)}
+                                onClick={() => handleDeleteClick(user.id)}
                                 className="text-red-600 hover:text-red-800 transition-colors"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -742,6 +758,7 @@ const AdminPage = () => {
         {activeTab === "questions" && <QuestionCreator />}
         {activeTab === "lecture" && <LectureManagement />}
         {activeTab === "speakinglistening" && <SpeakingListening />}
+        {activeTab === "games" && <GameManagement />}
         {/* User Modal */}
         {isModalOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -941,6 +958,51 @@ const AdminPage = () => {
           </div>
         )}
       </div>
+      {/* Delete Confirmation Modal */}
+      {isDeleteModalOpen && userIdToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0">
+                <AlertCircle className="h-6 w-6 text-red-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Xác nhận xóa người dùng
+                </h3>
+                <p className="mt-2 text-sm text-gray-500">
+                  Bạn có chắc chắn muốn xóa người dùng này? Hành động này không
+                  thể hoàn tác.
+                </p>
+                <div className="mt-4 flex gap-3 justify-end">
+                  <button
+                    onClick={() => {
+                      setIsDeleteModalOpen(false);
+                      setUserIdToDelete(null);
+                    }}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    onClick={() => userIdToDelete && deleteUser(userIdToDelete)}
+                    className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700"
+                  >
+                    {isLoading ? (
+                      <div className="flex items-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                        <span>Đang xóa...</span>
+                      </div>
+                    ) : (
+                      "Xóa người dùng"
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

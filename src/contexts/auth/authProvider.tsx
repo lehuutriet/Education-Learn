@@ -69,15 +69,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     const handleNetworkChange = () => {
       if (navigator.onLine) {
         showNotification({
-          title: "Back online",
-          message: "You are now connected to the internet.",
+          title: "Đã kết nối lại",
+          message: "Bạn đã được kết nối lại internet.",
           color: "green",
         });
-        checkAuthStatus();
+        checkAuthStatus(); // Kiểm tra lại session khi có kết nối
       } else {
         showNotification({
-          title: "Offline",
-          message: "You are offline. Some features may not work.",
+          title: "Mất kết nối",
+          message:
+            "Bạn đã mất kết nối internet. Một số tính năng có thể không hoạt động.",
           color: "red",
           icon: <span className="ri-alert-circle-line" />,
         });

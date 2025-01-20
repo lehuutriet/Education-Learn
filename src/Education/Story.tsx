@@ -233,12 +233,13 @@ const Story = () => {
                 className="group relative bg-white rounded-xl shadow-lg overflow-hidden cursor-pointer transform hover:scale-105 transition-all duration-300"
               >
                 {selectedType === "Video" ? (
-                  <div className="aspect-video bg-gray-100 relative">
-                    <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <div className="w-16 h-16 rounded-full bg-white bg-opacity-90 flex items-center justify-center">
-                        <Play className="w-8 h-8 text-purple-600" />
+                  <div className="aspect-video bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center relative">
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-20 h-20 rounded-full bg-white shadow-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <Play className="w-10 h-10 text-purple-600" />
                       </div>
                     </div>
+                    <div className="absolute inset-0 bg-black bg-opacity-10 opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
                 ) : (
                   <div className="aspect-video bg-gradient-to-br from-purple-100 to-pink-100 flex items-center justify-center relative">

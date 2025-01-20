@@ -5,6 +5,8 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import UserProfileModal from "./UserProfileModal";
 import NotificationComponent from "./Notification";
+import { motion } from "framer-motion";
+
 const Navigation = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isAboutDropdownOpen, setIsAboutDropdownOpen] = useState(false);
@@ -19,6 +21,8 @@ const Navigation = () => {
   });
   const [isAdmin, setIsAdmin] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [lastFetch, setLastFetch] = useState<number>(0);
+  const FETCH_COOLDOWN = 60000; // 1 minute cooldown
   // Handle scroll
   useEffect(() => {
     const handleScroll = () => {
@@ -28,25 +32,67 @@ const Navigation = () => {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  useEffect(() => {
-    const getUserData = async () => {
-      try {
-        const user = await account.get();
-        setIsAdmin(user.labels?.includes("Admin") || false);
-        setUserData({
-          name: user.name || "",
-          email: user.email || "",
-          avatarUrl: user.prefs?.avatarUrl || "",
-        });
-      } catch (error) {
-        console.error("Error fetching user data:", error);
+  // Update getCachedUserData to include session check
+  const getCachedUserData = () => {
+    const currentSession = localStorage.getItem("currentSession");
+    const cached = localStorage.getItem("userData");
+    if (cached && currentSession) {
+      const data = JSON.parse(cached);
+      if (data.sessionId === currentSession) {
+        return data;
       }
-    };
+    }
+    return null;
+  };
 
-    getUserData();
+  // Update getUserData to include session ID
+  const getUserData = async () => {
+    const now = Date.now();
+    if (now - lastFetch < FETCH_COOLDOWN) {
+      const cached = getCachedUserData();
+      if (cached) {
+        setIsAdmin(cached.isAdmin || false);
+        setUserData(cached);
+        return;
+      }
+    }
 
-    // Lắng nghe sự kiện cập nhật
+    try {
+      const session = await account.getSession("current");
+      const user = await account.get();
+      const userData = {
+        name: user.name || "",
+        email: user.email || "",
+        avatarUrl: user.prefs?.avatarUrl || "",
+        isAdmin: user.labels?.includes("Admin") || false,
+        sessionId: session.$id, // Add session ID to userData
+      };
+
+      localStorage.setItem("currentSession", session.$id);
+      localStorage.setItem("userData", JSON.stringify(userData));
+
+      setIsAdmin(userData.isAdmin);
+      setUserData(userData);
+      setLastFetch(now);
+    } catch (error) {
+      console.error("Error fetching user data:", error);
+    }
+  };
+
+  // Sửa lại useEffect
+  useEffect(() => {
+    // Kiểm tra cache trước
+    const cached = getCachedUserData();
+    if (cached) {
+      setIsAdmin(cached.isAdmin || false);
+      setUserData(cached);
+    } else {
+      getUserData();
+    }
+
     const handleUserUpdate = () => {
+      localStorage.removeItem("userData"); // Xóa cache khi có update
+      setLastFetch(0);
       getUserData();
     };
     window.addEventListener("userUpdated", handleUserUpdate);
@@ -55,14 +101,30 @@ const Navigation = () => {
       window.removeEventListener("userUpdated", handleUserUpdate);
     };
   }, [account]);
+  const handleNavigation = (path: string) => {
+    window.scrollTo(0, 0); // Scroll lên đầu trang
+    navigate(path);
+  };
+
   const handleAdminNav = () => {
     navigate("/admin");
     setIsMobileMenuOpen(false);
   };
 
+  // Update handleLogout to clear user data
   const handleLogout = async () => {
     try {
       await account.deleteSession("current");
+      // Clear user data
+      localStorage.removeItem("userData");
+      localStorage.removeItem("currentSession");
+      setUserData({
+        name: "",
+        email: "",
+        avatarUrl: "",
+      });
+      setIsAdmin(false);
+
       toast.success("Đăng xuất thành công!", {
         icon: "👋",
         style: {
@@ -89,23 +151,32 @@ const Navigation = () => {
     setIsAboutDropdownOpen(false);
   };
 
+  const menuItems = [
+    { text: "Trang chủ", path: "/homepage" },
+    { text: "Bài học", path: "/lessonGrid" },
+    { text: "Câu chuyện", path: "/story" },
+    { text: "Đề kiểm tra", path: "/exam" },
+    { text: "Thảo luận", path: "/discussion" },
+    { text: "Góp ý", path: "/feedback" },
+  ];
+
   return (
-    <div className={`relative ${isScrolled ? "pt-[73px]" : ""}`}>
+    <div className={`relative ${isScrolled ? "pt-[80px]" : ""}`}>
       <nav
         className={`
           w-full
           ${
             isScrolled
-              ? "fixed top-0 left-0 right-0 backdrop-blur-md bg-white/80 shadow-lg animate-slideDown"
-              : "relative bg-transparent"
+              ? "fixed top-0 left-0 right-0 bg-white/90 backdrop-blur-lg shadow-lg animate-slideDown"
+              : "relative bg-white/50 backdrop-blur-sm"
           } 
-          px-6 py-4
+          px-6 py-3
           transition-all duration-300 ease-in-out
           z-50
         `}
       >
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          {/* Logo Section - Left aligned */}
+          {/* Modern Logo Section */}
           <div
             className="flex items-center cursor-pointer group"
             onClick={() => {
@@ -113,108 +184,83 @@ const Navigation = () => {
               closeMobileMenu();
             }}
           >
-            <div className="w-12 h-12 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-xl flex items-center justify-center transform group-hover:rotate-6 transition-all duration-300">
+            <div className="w-12 h-12 bg-gradient-to-tr from-purple-600 via-violet-600 to-indigo-600 rounded-xl flex items-center justify-center transform group-hover:scale-110 group-hover:rotate-3 transition-all duration-300 shadow-lg">
               <span className="text-white font-bold text-xl">VGM</span>
             </div>
-            <span className="ml-3 text-lg font-semibold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent group-hover:scale-105 transition-transform">
-              VGM Education
-            </span>
-          </div>
-
-          {/* Desktop Navigation - Center */}
-          <div className="hidden md:flex  items-center justify-center">
-            <div className="flex items-center space-x-8">
-              {[
-                { text: "Trang chủ", path: "/homepage" },
-                { text: "Câu chuyện", path: "/story" },
-                { text: "Bài học", path: "/lessonGrid" },
-                { text: "Đề kiểm tra", path: "/exam" },
-              ].map((item, index) => (
-                <button
-                  key={index}
-                  onClick={() => navigate(item.path)}
-                  className={`relative px-3 py-2 text-base font-medium transition-colors
-                  ${
-                    isActiveLink(item.path)
-                      ? "text-purple-600"
-                      : "text-gray-700 hover:text-purple-600"
-                  }
-                  before:content-['']
-                  before:absolute 
-                  before:bottom-0
-                  before:left-0
-                  before:w-full
-                  before:h-0.5
-                  before:bg-gradient-to-r
-                  before:from-purple-600
-                  before:to-indigo-600
-                  before:transform
-                  before:scale-x-0
-                  before:transition-transform
-                  before:duration-300
-                  hover:before:scale-x-100
-                `}
-                >
-                  {item.text}
-                </button>
-              ))}
+            <div className="ml-3 relative overflow-hidden">
+              <span className="text-lg font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent group-hover:scale-105 transition-transform inline-block">
+                VGM Education
+              </span>
+              <div className="absolute bottom-0 left-0 w-full h-0.5 bg-gradient-to-r from-purple-600 to-indigo-600 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></div>
             </div>
           </div>
-          {/* Desktop User Controls - Right aligned */}
-          <div className="hidden md:flex items-center space-x-6">
-            <button
-              onClick={() => navigate("/feedback")}
-              className="px-4 py-2 text-gray-700 hover:text-purple-600 transition-colors flex items-center gap-2"
-            >
-              <i className="ri-feedback-line text-lg"></i>
-              Hỗ Trợ
-            </button>
-            <button
-              onClick={() => navigate("/classroomManagement")}
-              className={`
-                relative overflow-hidden px-6 py-2.5
-                bg-gradient-to-r from-purple-600 to-indigo-600
-                text-white rounded-lg
-                transform hover:scale-105
-                transition-all duration-300
-                before:content-['']
-                before:absolute
-                before:top-0
-                before:left-0
-                before:w-full
-                before:h-full
-                before:bg-gradient-to-r
-                before:from-purple-700
-                before:to-indigo-700
-                before:opacity-0
-                before:transition-opacity
-                before:duration-300
-                hover:before:opacity-100
-                shadow-md
-              `}
-            >
-              <span className="relative z-10 flex items-center">
-                Lớp học
-                <svg
-                  className="w-4 h-4 ml-2 transform group-hover:translate-x-1 transition-transform"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M13 7l5 5m0 0l-5 5m5-5H6"
-                  />
-                </svg>
-              </span>
-            </button>
 
-            {/* User Dropdown - Updated Style */}
+          {/* Modern Desktop Navigation */}
+          <div className="hidden md:flex items-center space-x-1">
+            {menuItems.map((item, index) => (
+              <motion.button
+                key={index}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => handleNavigation(item.path)}
+                className={`
+                  relative px-4 py-2 rounded-lg text-sm font-medium
+                  ${
+                    isActiveLink(item.path)
+                      ? "text-white bg-gradient-to-r from-purple-600 to-indigo-600 shadow-md"
+                      : "text-gray-700 hover:bg-gray-50"
+                  }
+                  transition-all duration-200
+                `}
+              >
+                {item.text}
+              </motion.button>
+            ))}
+          </div>
+
+          {/* Modern Action Buttons */}
+          <div className="hidden md:flex items-center space-x-3">
+            {/* Classroom Management Button */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => navigate("/classroomManagement")}
+              className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg text-sm font-medium shadow-md hover:shadow-lg transition-all duration-200"
+            >
+              <span className="flex items-center space-x-2">
+                <i className="ri-school-line"></i>
+                <span>Lớp học</span>
+              </span>
+            </motion.button>
+
+            {/* Online Classroom Button */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => navigate("/online-classroom")}
+              className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-lg text-sm font-medium shadow-md hover:shadow-lg transition-all duration-200"
+            >
+              <span className="flex items-center space-x-2">
+                <i className="ri-video-line"></i>
+                <span>Phòng học online</span>
+              </span>
+            </motion.button>
+
+            {/* Modern Notification Button */}
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="relative"
+            ></motion.div>
+
+            {/* Modern User Profile Section */}
             <div className="relative group">
-              <button className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
-                <div className="w-10 h-10 rounded-lg overflow-hidden">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="flex items-center space-x-3 p-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
+              >
+                <div className="w-10 h-10 rounded-lg overflow-hidden shadow-md">
                   {userData.avatarUrl ? (
                     <img
                       src={userData.avatarUrl}
@@ -230,21 +276,22 @@ const Navigation = () => {
                 <span className="text-sm font-medium text-gray-700">
                   {userData.name || "User"}
                 </span>
-              </button>
+              </motion.button>
               {isProfileModalOpen && (
                 <UserProfileModal
                   isOpen={isProfileModalOpen}
                   onClose={() => setIsProfileModalOpen(false)}
                 />
               )}
-              {/* Dropdown Menu - Updated Style */}
-
+              {/* Modern Dropdown Menu */}
               <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-xl border border-gray-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform group-hover:translate-y-0 translate-y-2">
                 <div className="p-4 border-b border-gray-100">
-                  <p className="text-sm font-medium text-gray-900">
+                  <p className="text-sm font-medium text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis">
                     {userData.name}
                   </p>
-                  <p className="text-sm text-gray-500">{userData.email}</p>
+                  <p className="text-sm text-gray-500 whitespace-nowrap overflow-hidden text-ellipsis">
+                    {userData.email}
+                  </p>
                 </div>
                 <div className="py-2">
                   {/* Thêm mục thiết lập thông tin người dùng */}
@@ -257,16 +304,6 @@ const Navigation = () => {
                     <span className="text-sm font-medium">
                       Thông tin cá nhân
                     </span>
-                  </button>
-
-                  <button
-                    className="w-full flex items-center px-4 py-3 text-gray-700 hover:bg-purple-50 
-                  rounded-lg transition-colors group/item"
-                  >
-                    <i className="ri-notification-3-line text-lg text-gray-400 group-hover/item:text-purple-600 mr-3"></i>
-                    <span className="text-sm font-medium">Thông báo</span>{" "}
-                    <NotificationComponent />
-                    {/* <span className="ml-auto bg-purple-100 text-purple-600 text-xs font-medium px-2 py-1 rounded-full"></span> */}
                   </button>
                 </div>
 
@@ -300,9 +337,17 @@ const Navigation = () => {
               </div>
             </div>
           </div>
-
-          {/* Mobile Menu Button - Updated Style */}
-          <button
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="p-2 rounded-lg text-gray-600 hover:bg-violet-50 transition-colors"
+          >
+            <NotificationComponent />
+          </motion.button>
+          {/* Modern Mobile Menu Button */}
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             className="p-2 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors md:hidden"
           >
@@ -311,109 +356,100 @@ const Navigation = () => {
             ) : (
               <Menu className="w-6 h-6" />
             )}
-          </button>
+          </motion.button>
         </div>
 
-        {/* Mobile Menu */}
-        {isMobileMenuOpen && (
-          <div
-            className="fixed inset-0 bg-white z-40 md:hidden"
-            style={{ top: "73px" }}
-          >
-            <div className="p-4 space-y-4">
-              {/* Mobile About Section */}
-              <div>
-                <button
-                  onClick={() => setIsAboutDropdownOpen(!isAboutDropdownOpen)}
-                  className="flex items-center justify-between w-full p-2 text-gray-700"
-                >
-                  <span>Trang chủ</span>
-                  <ChevronDown
-                    className={`w-5 h-5 transform transition-transform ${
-                      isAboutDropdownOpen ? "rotate-180" : ""
-                    }`}
-                  />
-                </button>
-              </div>
-
+        {/* Modern Mobile Menu */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{
+            opacity: isMobileMenuOpen ? 1 : 0,
+            y: isMobileMenuOpen ? 0 : -20,
+          }}
+          className={`
+            fixed inset-0 bg-white/95 backdrop-blur-lg z-40 md:hidden
+            ${isMobileMenuOpen ? "block" : "hidden"}
+          `}
+          style={{ top: "80px" }}
+        >
+          <div className="p-4 space-y-4">
+            {/* Mobile About Section */}
+            <div>
               <button
-                onClick={() => {
-                  navigate("/story");
-                  closeMobileMenu();
-                }}
-                className={`block w-full p-2 text-left transition-colors ${
-                  isActiveLink("story") ? "text-purple-600" : "text-gray-700"
-                }`}
+                onClick={() => setIsAboutDropdownOpen(!isAboutDropdownOpen)}
+                className="flex items-center justify-between w-full p-2 text-gray-700"
               >
-                Câu chuyện
-              </button>
-              <button
-                onClick={() => {
-                  navigate("/LessonGrid");
-                  closeMobileMenu();
-                }}
-                className={`block w-full p-2 text-left transition-colors ${
-                  isActiveLink("story") ? "text-purple-600" : "text-gray-700"
-                }`}
-              >
-                Bài học
-              </button>
-              <button
-                onClick={() => {
-                  navigate("/exam");
-                  closeMobileMenu();
-                }}
-                className={`block w-full p-2 text-left transition-colors ${
-                  isActiveLink("story") ? "text-purple-600" : "text-gray-700"
-                }`}
-              >
-                Đề kiểm tra
-              </button>
-
-              <div className="pt-4 border-t border-gray-200">
-                <button
-                  onClick={() => {
-                    navigate("/classroomManagement");
-                    closeMobileMenu();
-                  }}
-                  className={`block w-full p-2 text-gray-800 border border-gray-300 rounded mb-4 hover:bg-purple-600 hover:text-white hover:border-transparent transition-colors ${
-                    isActiveLink("/classroomManagement")
-                      ? "bg-purple-600 text-white border-transparent"
-                      : ""
+                <span>Trang chủ</span>
+                <ChevronDown
+                  className={`w-5 h-5 transform transition-transform ${
+                    isAboutDropdownOpen ? "rotate-180" : ""
                   }`}
-                >
-                  Lớp học
-                </button>
-              </div>
+                />
+              </button>
+            </div>
 
-              {/* Mobile User Info */}
-              <div className="pt-4 border-t border-gray-200">
-                <div className="p-2">
-                  <p className="font-medium text-gray-900">{userData.name}</p>
-                  <p className="text-sm text-gray-500">{userData.email}</p>
-                </div>
-                {/* Thêm mục thiết lập thông tin người dùng cho mobile */}
-                <button className="block w-full px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors">
-                  Thông tin người dùng
-                </button>
-                {isAdmin && (
-                  <button
-                    onClick={handleAdminNav}
-                    className="block w-full px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-                  >
-                    Trang Quản trị viên
-                  </button>
-                )}
-                <button
-                  onClick={handleLogout}
-                  className="block w-full px-4 py-2 text-sm text-red-600 hover:bg-gray-50 transition-colors"
-                >
-                  Sign out
-                </button>
+            {menuItems.map((item, index) => (
+              <button
+                key={index}
+                onClick={() => {
+                  navigate(item.path);
+                  closeMobileMenu();
+                }}
+                className={`block w-full p-2 text-left transition-colors ${
+                  isActiveLink(item.path) ? "text-purple-600" : "text-gray-700"
+                }`}
+              >
+                {item.text}
+              </button>
+            ))}
+
+            <div className="pt-4 border-t border-gray-200">
+              <button
+                onClick={() => {
+                  navigate("/classroomManagement");
+                  closeMobileMenu();
+                }}
+                className={`block w-full p-2 text-gray-800 border border-gray-300 rounded mb-4 hover:bg-purple-600 hover:text-white hover:border-transparent transition-colors ${
+                  isActiveLink("/classroomManagement")
+                    ? "bg-purple-600 text-white border-transparent"
+                    : ""
+                }`}
+              >
+                Lớp học
+              </button>
+            </div>
+
+            {/* Mobile User Info */}
+            <div className="pt-4 border-t border-gray-200">
+              <div className="p-2">
+                <p className="font-medium text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis">
+                  {userData.name}
+                </p>
+                <p className="text-sm text-gray-500 whitespace-nowrap overflow-hidden text-ellipsis">
+                  {userData.email}
+                </p>
               </div>
+              {/* Thêm mục thiết lập thông tin người dùng cho mobile */}
+              <button className="block w-full px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+                Thông tin người dùng
+              </button>
+              {isAdmin && (
+                <button
+                  onClick={handleAdminNav}
+                  className="block w-full px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                >
+                  Trang Quản trị viên
+                </button>
+              )}
+              <button
+                onClick={handleLogout}
+                className="block w-full px-4 py-2 text-sm text-red-600 hover:bg-gray-50 transition-colors"
+              >
+                Sign out
+              </button>
             </div>
           </div>
-        )}
+        </motion.div>
       </nav>
     </div>
   );

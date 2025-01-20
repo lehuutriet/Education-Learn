@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import Navigation from "../Navigation/Navigation";
 import {
-  Bell,
   ShoppingBag,
   User,
   Book,
@@ -9,12 +8,13 @@ import {
   BookOpenText,
   Menu,
   X,
+  Gamepad,
 } from "lucide-react";
 
 import PronunciationLesson from "./PronunciationLesson";
 import LearningContent from "./LearningContent";
 import LessonDetail from "./LessonList";
-
+import GameArea from "../Game/GameArea";
 interface SidebarMenuItemProps {
   icon: React.ReactNode;
   label: string;
@@ -97,6 +97,8 @@ const LessonGrid = () => {
         return <LearningContent />;
       case "lessonViewer":
         return <LessonDetail />;
+      case "game":
+        return <GameArea />;
       default:
         return <div className="text-center p-8">Tính năng đang phát triển</div>;
     }
@@ -170,11 +172,11 @@ const LessonGrid = () => {
               }}
             />
             <SidebarMenuItem
-              icon={<Bell className="w-6 h-6" />}
-              label="NHIỆM VỤ"
-              active={activeTab === "tasks"}
+              icon={<Gamepad className="w-6 h-6" />}
+              label="TRÒ CHƠI"
+              active={activeTab === "game"}
               onClick={() => {
-                setActiveTab("tasks");
+                setActiveTab("game");
                 setIsSidebarOpen(false);
               }}
             />

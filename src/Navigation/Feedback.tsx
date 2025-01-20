@@ -3,6 +3,7 @@ import { useAuth } from "../contexts/auth/authProvider";
 import { toast } from "react-hot-toast";
 import Navigation from "../Navigation/Navigation";
 import { motion } from "framer-motion";
+import { useSearchParams } from "react-router-dom";
 import {
   FiMessageSquare,
   FiSend,
@@ -32,137 +33,6 @@ interface FeedbackData {
 }
 
 // Di chuyển ReplyModal ra khỏi component chính
-const ReplyModal = ({
-  isOpen,
-  onClose,
-  feedback,
-  onSubmit,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  feedback: FeedbackData | null;
-  onSubmit: (text: string) => void;
-}) => {
-  if (!isOpen || !feedback) return null;
-
-  const [replyText, setReplyText] = useState("");
-
-  const handleSubmit = () => {
-    onSubmit(replyText);
-    setReplyText("");
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl p-6 max-w-lg w-full mx-4">
-        <h3 className="text-xl font-bold mb-4">Trả lời phản hồi</h3>
-
-        <div className="mb-4">
-          <p className="text-gray-600">{feedback.description}</p>
-        </div>
-
-        <textarea
-          value={replyText}
-          onChange={(e) => setReplyText(e.target.value)}
-          rows={4}
-          className="w-full p-3 border rounded-lg mb-4"
-          placeholder="Nhập nội dung phản hồi..."
-        />
-
-        <div className="flex justify-end gap-4">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
-          >
-            Hủy
-          </button>
-          <button
-            onClick={handleSubmit}
-            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-          >
-            Gửi phản hồi
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const ImagePreviewModal = ({
-  isOpen,
-  imageUrl,
-  onClose,
-}: {
-  isOpen: boolean;
-  imageUrl: string;
-  onClose: () => void;
-}) => {
-  if (!isOpen) return null;
-
-  return (
-    <div
-      className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
-      onClick={onClose}
-    >
-      <div className="relative w-full max-w-[95vw] max-h-[95vh] flex items-center justify-center">
-        <img
-          src={imageUrl}
-          alt="Preview"
-          className="w-full h-full object-contain"
-          onClick={(e) => e.stopPropagation()}
-          style={{ maxHeight: "90vh" }}
-        />
-        <button
-          className="absolute top-4 right-4 p-2 bg-white/20 hover:bg-white/30 rounded-full"
-          onClick={onClose}
-        >
-          <X className="w-6 h-6 text-white" />
-        </button>
-      </div>
-    </div>
-  );
-};
-
-const DeleteConfirmationModal = ({
-  isOpen,
-  onClose,
-  onConfirm,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-}) => {
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl p-6 max-w-sm w-full mx-4">
-        <h3 className="text-xl font-bold text-gray-900 mb-4">Xác nhận xóa</h3>
-        <p className="text-gray-600 mb-6">
-          Bạn có chắc chắn muốn xóa phản hồi này? Hành động này không thể hoàn
-          tác.
-        </p>
-        <div className="flex justify-end gap-4">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
-          >
-            Hủy
-          </button>
-          <button
-            onClick={() => {
-              onConfirm();
-              onClose();
-            }}
-            className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
-          >
-            Xác nhận xóa
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 const FeedbackForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -182,7 +52,7 @@ const FeedbackForm = () => {
     null
   );
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [feedbackUpdated, setFeedbackUpdated] = useState(false);
+
   const [isImagePreviewOpen, setIsImagePreviewOpen] = useState(false);
   const [previewImageUrl, setPreviewImageUrl] = useState("");
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -203,12 +73,168 @@ const FeedbackForm = () => {
     content: "Nội dung",
     suggestion: "Đề xuất",
   };
+  const [searchParams] = useSearchParams();
+  const feedbackId = searchParams.get("id");
+  const ReplyModal = ({
+    isOpen,
+    onClose,
+    feedback,
+    onSubmit,
+  }: {
+    isOpen: boolean;
+    onClose: () => void;
+    feedback: FeedbackData | null;
+    onSubmit: (text: string) => void;
+  }) => {
+    if (!isOpen || !feedback) return null;
+
+    const [replyText, setReplyText] = useState("");
+
+    const handleSubmit = () => {
+      onSubmit(replyText);
+      setReplyText("");
+    };
+
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-xl p-6 max-w-lg w-full mx-4">
+          <h3 className="text-xl font-bold mb-4">Trả lời phản hồi</h3>
+
+          <div className="mb-4">
+            <p className="text-gray-600">{feedback.description}</p>
+          </div>
+
+          <textarea
+            value={replyText}
+            onChange={(e) => setReplyText(e.target.value)}
+            rows={4}
+            className="w-full p-3 border rounded-lg mb-4"
+            placeholder="Nhập nội dung phản hồi..."
+          />
+
+          <div className="flex justify-end gap-4">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+            >
+              Hủy
+            </button>
+            <button
+              onClick={handleSubmit}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+            >
+              Gửi phản hồi
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const ImagePreviewModal = ({
+    isOpen,
+    imageUrl,
+    onClose,
+  }: {
+    isOpen: boolean;
+    imageUrl: string;
+    onClose: () => void;
+  }) => {
+    if (!isOpen) return null;
+
+    return (
+      <div
+        className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+        onClick={onClose}
+      >
+        <div className="relative w-full max-w-[95vw] max-h-[95vh] flex items-center justify-center">
+          <img
+            src={imageUrl}
+            alt="Preview"
+            className="w-full h-full object-contain"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxHeight: "90vh" }}
+          />
+          <button
+            className="absolute top-4 right-4 p-2 bg-white/20 hover:bg-white/30 rounded-full"
+            onClick={onClose}
+          >
+            <X className="w-6 h-6 text-white" />
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const DeleteConfirmationModal = ({
+    isOpen,
+    onClose,
+    onConfirm,
+  }: {
+    isOpen: boolean;
+    onClose: () => void;
+    onConfirm: () => void;
+  }) => {
+    if (!isOpen) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-xl p-6 max-w-sm w-full mx-4">
+          <h3 className="text-xl font-bold text-gray-900 mb-4">Xác nhận xóa</h3>
+          <p className="text-gray-600 mb-6">
+            Bạn có chắc chắn muốn xóa phản hồi này? Hành động này không thể hoàn
+            tác.
+          </p>
+          <div className="flex justify-end gap-4">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+            >
+              Hủy
+            </button>
+            <button
+              onClick={() => {
+                onConfirm();
+                onClose();
+              }}
+              className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+            >
+              Xác nhận xóa
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  useEffect(() => {
+    if (feedbackId) {
+      setActiveTab("list");
+
+      // Thêm delay nhỏ để đảm bảo DOM đã render
+      setTimeout(() => {
+        // Tìm element của feedback cụ thể
+        const feedbackElement = document.getElementById(
+          `feedback-${feedbackId}`
+        );
+        if (feedbackElement) {
+          feedbackElement.scrollIntoView({ behavior: "smooth" });
+          // Có thể thêm highlight effect
+          feedbackElement.classList.add("bg-yellow-50");
+          setTimeout(() => {
+            feedbackElement.classList.remove("bg-yellow-50");
+          }, 2000);
+        }
+      }, 100);
+    }
+  }, [feedbackId]);
+
   // Thay đổi hàm createNotification để truncate message
   const createNotification = async (data: {
     userId: string;
     title: string;
     message: string;
     type: "feedback_response" | "new_feedback";
+    feedbackId: string;
   }) => {
     try {
       // Truncate message to max 30 chars if needed
@@ -272,59 +298,59 @@ const FeedbackForm = () => {
         feedbackToDelete.id
       );
 
-      // Cập nhật state
+      // Cập nhật state trực tiếp
       setFeedbackHistory((prev) =>
         prev.filter((item) => item.id !== feedbackToDelete.id)
       );
+
       toast.success("Đã xóa phản hồi thành công");
+      setIsDeleteModalOpen(false);
     } catch (error) {
       console.error("Error deleting feedback:", error);
       toast.error("Không thể xóa phản hồi");
     }
   };
   // Fetch feedback với thêm thông tin người gửi
-  useEffect(() => {
-    const fetchFeedbackHistory = async () => {
-      try {
-        const user = await account.get();
-        let query = [];
+  const fetchFeedbackHistory = async () => {
+    try {
+      const user = await account.get();
+      let query = [];
 
-        if (!["Admin"].includes(userRole)) {
-          query.push(Query.equal("userId", user.$id));
-        }
-
-        const response = await databases.listDocuments(
-          DATABASE_ID,
-          FEEDBACK_COLLECTION,
-          query
-        );
-
-        const feedbackData = response.documents.map((doc) => ({
-          id: doc.$id,
-          title: doc.title,
-          category: doc.category,
-          description: doc.description,
-          status: doc.status,
-          createdAt: doc.createdAt,
-          response: doc.response,
-          userId: doc.userId,
-          userName: doc.userName || "Unknown User", // Lấy userName từ document
-          respondedBy: doc.respondedBy,
-          respondedAt: doc.respondedAt,
-          imageId: doc.imageId,
-          bucketId: doc.bucketId,
-        }));
-
-        setFeedbackHistory(feedbackData);
-      } catch (error) {
-        console.error("Error fetching feedback:", error);
-        toast.error("Không thể tải lịch sử phản hồi");
+      if (!["Admin"].includes(userRole)) {
+        query.push(Query.equal("userId", user.$id));
       }
-    };
 
+      const response = await databases.listDocuments(
+        DATABASE_ID,
+        FEEDBACK_COLLECTION,
+        query
+      );
+
+      const feedbackData = response.documents.map((doc) => ({
+        id: doc.$id,
+        title: doc.title,
+        category: doc.category,
+        description: doc.description,
+        status: doc.status,
+        createdAt: doc.createdAt,
+        response: doc.response,
+        userId: doc.userId,
+        userName: doc.userName || "Unknown User", // Lấy userName từ document
+        respondedBy: doc.respondedBy,
+        respondedAt: doc.respondedAt,
+        imageId: doc.imageId,
+        bucketId: doc.bucketId,
+      }));
+
+      setFeedbackHistory(feedbackData);
+    } catch (error) {
+      console.error("Error fetching feedback:", error);
+      toast.error("Không thể tải lịch sử phản hồi");
+    }
+  };
+  useEffect(() => {
     fetchFeedbackHistory();
-    setFeedbackUpdated(false);
-  }, [userRole, feedbackUpdated]);
+  }, [userRole]);
 
   // Hàm xử lý phản hồi của admin
   const handleReply = async (replyText: string) => {
@@ -345,16 +371,33 @@ const FeedbackForm = () => {
         }
       );
 
-      setFeedbackUpdated(true);
+      // Cập nhật state trực tiếp thay vì fetch lại
+      setFeedbackHistory((prev) =>
+        prev.map((feedback) => {
+          if (feedback.id === selectedFeedback.id) {
+            return {
+              ...feedback,
+              response: replyText,
+              status: "Đã xử lý",
+              respondedBy: user.name,
+              respondedAt: new Date().toISOString(),
+            };
+          }
+          return feedback;
+        })
+      );
+
       setIsReplyModalOpen(false);
       setSelectedFeedback(null);
       toast.success("Đã gửi phản hồi thành công!");
+
       // Tạo thông báo cho người gửi feedback
       await createNotification({
         userId: selectedFeedback.userId,
         type: "feedback_response",
         title: "Phản hồi mới",
         message: `Admin đã trả lời phản hồi "${selectedFeedback.title}" của bạn`,
+        feedbackId: selectedFeedback.id,
       });
     } catch (error) {
       console.error("Error replying to feedback:", error);
@@ -452,6 +495,7 @@ const FeedbackForm = () => {
               type: "new_feedback",
               title: "Phản hồi mới từ người dùng",
               message: `${user.name} đã gửi một phản hồi mới: "${feedback.title}"`,
+              feedbackId: feedbackDoc.$id, // Thêm feedbackId của feedback vừa tạo
             });
           }
         }
@@ -474,16 +518,9 @@ const FeedbackForm = () => {
       return true;
     });
 
-    if (filteredFeedbacks.length === 0) {
-      return (
-        <div className="text-center py-8 text-gray-500">
-          Không có phản hồi nào
-        </div>
-      );
-    }
-
     return (
       <div className="max-w-3xl mx-auto">
+        {/* Always show filter controls */}
         <div className="mb-6 flex items-center gap-4">
           <label className="text-sm font-medium text-gray-700">
             Trạng thái:
@@ -498,132 +535,143 @@ const FeedbackForm = () => {
             <option value="resolved">Đã xử lý</option>
           </select>
         </div>
-        {filteredFeedbacks.map((item, index) => (
-          <motion.div
-            key={item.id}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: index * 0.1 }}
-            className="mb-8 flex gap-6"
-          >
-            <div className="relative flex flex-col items-center">
-              <div
-                className={`w-3 h-3 rounded-full mt-2 ${
-                  item.status === "Đã xử lý" ? "bg-green-500" : "bg-yellow-500"
-                }`}
-              />
-              <span className="text-sm text-gray-500">
-                Gửi bởi: {item.userName}
-              </span>
-              {index !== feedbackHistory.length - 1 && (
-                <div className="h-full w-0.5 bg-gray-200" />
-              )}
-            </div>
 
-            <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-800">
-                    {item.title}
-                  </h3>
-                  <span className="inline-block px-3 py-1 text-sm rounded-full bg-purple-100 text-purple-700 mt-2">
-                    {categoryMap[item.category] || item.category}
-                  </span>
-                </div>
-
-                <span
-                  className={`px-3 py-1 rounded-full text-sm ${
+        {/* Show message when no data */}
+        {filteredFeedbacks.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            Không có phản hồi nào
+          </div>
+        ) : (
+          filteredFeedbacks.map((item, index) => (
+            <div
+              key={item.id}
+              id={`feedback-${item.id}`}
+              className="mb-8 flex gap-6"
+            >
+              <div className="relative flex flex-col items-center">
+                <div
+                  className={`w-3 h-3 rounded-full mt-2 ${
                     item.status === "Đã xử lý"
-                      ? "bg-green-100 text-green-700"
-                      : "bg-yellow-100 text-yellow-700"
+                      ? "bg-green-500"
+                      : "bg-yellow-500"
                   }`}
-                >
-                  {item.status}
+                />
+                <span className="text-sm text-gray-500">
+                  Gửi bởi: {item.userName}
                 </span>
+                {index !== feedbackHistory.length - 1 && (
+                  <div className="h-full w-0.5 bg-gray-200" />
+                )}
               </div>
-              {item.imageId && item.bucketId && (
-                <div className="mt-4">
-                  <img
-                    src={storage
-                      .getFileView(item.bucketId, item.imageId)
-                      .toString()}
-                    alt="Feedback attachment"
-                    className="max-w-full h-auto rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-                    onClick={() => {
-                      if (item.bucketId && item.imageId) {
-                        setPreviewImageUrl(
-                          storage
-                            .getFileView(item.bucketId, item.imageId)
-                            .toString()
-                        );
-                        setIsImagePreviewOpen(true);
-                      }
-                    }}
-                  />
-                </div>
-              )}
 
-              <p className="text-gray-600 mb-4">{item.description}</p>
-              {item.response && (
-                <div className="bg-gray-50 rounded-lg p-4 mt-4">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="font-medium text-gray-700">
-                      Phản hồi từ: {item.respondedBy}
-                    </span>
-                    <span className="text-sm text-gray-500">
-                      {new Date(item.respondedAt!).toLocaleDateString("vi-VN")}
+              <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-800">
+                      {item.title}
+                    </h3>
+                    <span className="inline-block px-3 py-1 text-sm rounded-full bg-purple-100 text-purple-700 mt-2">
+                      {categoryMap[item.category] || item.category}
                     </span>
                   </div>
-                  <p className="text-gray-600">{item.response}</p>
-                </div>
-              )}
 
-              <div className="flex items-center text-sm text-gray-500 mt-4">
-                <FiClock className="mr-2" />
-                <span>
-                  {new Date(item.createdAt).toLocaleDateString("vi-VN")}
-                </span>
-              </div>
-              <div className="flex items-center gap-4 mt-4">
-                {["Admin"].includes(userRole) && !item.response && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedFeedback(item);
-                      setIsReplyModalOpen(true);
-                    }}
-                    className="flex items-center gap-2 px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors"
+                  <span
+                    className={`px-3 py-1 rounded-full text-sm ${
+                      item.status === "Đã xử lý"
+                        ? "bg-green-100 text-green-700"
+                        : "bg-yellow-100 text-yellow-700"
+                    }`}
                   >
-                    <FiMessageSquare className="w-4 h-4" />
-                    Trả lời phản hồi
-                  </button>
+                    {item.status}
+                  </span>
+                </div>
+                {item.imageId && item.bucketId && (
+                  <div className="mt-4">
+                    <img
+                      src={storage
+                        .getFileView(item.bucketId, item.imageId)
+                        .toString()}
+                      alt="Feedback attachment"
+                      className="max-w-full h-auto rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                      onClick={() => {
+                        if (item.bucketId && item.imageId) {
+                          setPreviewImageUrl(
+                            storage
+                              .getFileView(item.bucketId, item.imageId)
+                              .toString()
+                          );
+                          setIsImagePreviewOpen(true);
+                        }
+                      }}
+                    />
+                  </div>
                 )}
 
-                <button
-                  onClick={() =>
-                    handleDeleteFeedback(item.id, item.imageId, item.bucketId)
-                  }
-                  className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+                <p className="text-gray-600 mb-4">{item.description}</p>
+                {item.response && (
+                  <div className="bg-gray-50 rounded-lg p-4 mt-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="font-medium text-gray-700">
+                        Phản hồi từ: {item.respondedBy}
+                      </span>
+                      <span className="text-sm text-gray-500">
+                        {new Date(item.respondedAt!).toLocaleDateString(
+                          "vi-VN"
+                        )}
+                      </span>
+                    </div>
+                    <p className="text-gray-600">{item.response}</p>
+                  </div>
+                )}
+
+                <div className="flex items-center text-sm text-gray-500 mt-4">
+                  <FiClock className="mr-2" />
+                  <span>
+                    {new Date(item.createdAt).toLocaleDateString("vi-VN")}
+                  </span>
+                </div>
+                <div className="flex items-center gap-4 mt-4">
+                  {["Admin"].includes(userRole) && !item.response && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedFeedback(item);
+                        setIsReplyModalOpen(true);
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors"
+                    >
+                      <FiMessageSquare className="w-4 h-4" />
+                      Trả lời phản hồi
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleDeleteFeedback(item.id, item.imageId, item.bucketId)
+                    }
+                    className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                    />
-                  </svg>
-                  Xóa
-                </button>
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      />
+                    </svg>
+                    Xóa
+                  </button>
+                </div>
               </div>
             </div>
-          </motion.div>
-        ))}
+          ))
+        )}
       </div>
     );
   };
@@ -631,7 +679,7 @@ const FeedbackForm = () => {
   return (
     <>
       <Navigation />
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-indigo-50 pt-8 relative overflow-hidden">
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-indigo-50 pt-8 relative overflow-hidden pb-0">
         {/* Decorative Elements */}
         <div className="absolute inset-0 z-0 opacity-40">
           <div className="absolute top-20 left-10 w-72 h-72 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl animate-blob"></div>

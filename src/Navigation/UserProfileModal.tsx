@@ -33,7 +33,13 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
     confirmPassword: false,
   });
   const imageforProfile = "677b9ade002576cc5ecf";
-
+  const roleMapping: { [key: string]: string } = {
+    Admin: "Quản trị viên",
+    Teacher: "Giáo viên",
+    Student: "Học sinh",
+    Instructor: "Giảng viên",
+    Parent: "Phụ huynh",
+  };
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -176,28 +182,37 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
         updateData.phone = formattedPhone;
       }
       if (activeTab === "password") {
-        // Validate mật khẩu
-        if (!formData.currentPassword) {
-          throw new Error("Vui lòng nhập mật khẩu hiện tại");
-        }
-        if (!formData.newPassword) {
-          throw new Error("Vui lòng nhập mật khẩu mới");
-        }
-        if (formData.newPassword.length < 8) {
-          throw new Error("Mật khẩu mới phải có ít nhất 8 ký tự");
-        }
-        if (formData.newPassword !== formData.confirmPassword) {
-          throw new Error("Mật khẩu mới không khớp");
-        }
+        try {
+          // Validate mật khẩu
+          if (!formData.currentPassword) {
+            throw new Error("Vui lòng nhập mật khẩu hiện tại");
+          }
+          if (!formData.newPassword) {
+            throw new Error("Vui lòng nhập mật khẩu mới");
+          }
+          if (formData.newPassword.length < 8) {
+            throw new Error("Mật khẩu mới phải có ít nhất 8 ký tự");
+          }
+          if (formData.newPassword !== formData.confirmPassword) {
+            throw new Error("Mật khẩu mới không khớp");
+          }
 
-        // Cập nhật mật khẩu
-        await account.updatePassword(
-          formData.newPassword,
-          formData.currentPassword
-        );
-        toast.success("Cập nhật mật khẩu thành công");
-        onClose();
-        return;
+          // Cập nhật mật khẩu
+          await account.updatePassword(
+            formData.newPassword,
+            formData.currentPassword
+          );
+          toast.success("Cập nhật mật khẩu thành công");
+          onClose();
+          return;
+        } catch (passwordError: any) {
+          if (passwordError.code === 401) {
+            toast.error("Mật khẩu hiện tại không chính xác");
+          } else {
+            throw passwordError;
+          }
+          return;
+        }
       }
       // Kiểm tra định dạng số điện thoại
       if (
@@ -231,6 +246,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
       }
     } catch (error: any) {
       console.error("Error updating user:", error);
+
       // Hiển thị lỗi dễ hiểu cho người dùng
       let errorMessage = "Không thể cập nhật thông tin";
       if (error.message.includes("Phone number")) {
@@ -386,7 +402,10 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
                       </label>
                       <input
                         type="text"
-                        value={formData.labels}
+                        value={formData.labels
+                          .split(", ")
+                          .map((label) => roleMapping[label] || label)
+                          .join(", ")}
                         disabled
                         className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50 cursor-not-allowed"
                       />

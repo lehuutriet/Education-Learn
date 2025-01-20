@@ -8,6 +8,7 @@ interface AudioFile extends Models.Document {
   bucketId: string;
   fileId: string;
   description?: string;
+  soundType: "consonant" | "vowel";
 }
 
 const PronunciationLesson = () => {
@@ -43,7 +44,7 @@ const PronunciationLesson = () => {
 
       setAudioFiles(response.documents);
     } catch (error) {
-      console.error("Error fetching audio files:", error);
+      console.error("Lỗi khi tải file âm thanh:", error);
     } finally {
       setLoading(false);
     }
@@ -78,7 +79,7 @@ const PronunciationLesson = () => {
       setCurrentAudio(audio);
       await audio.play();
     } catch (error) {
-      console.error("Error playing audio:", error);
+      console.error("Lỗi khi phát âm thanh:", error);
       setPlayingId(null);
       setCurrentAudio(null);
     }
@@ -92,6 +93,12 @@ const PronunciationLesson = () => {
     );
   }
 
+  // Tách audio files thành 2 mảng riêng
+  const vowelFiles = audioFiles.filter((file) => file.soundType === "vowel");
+  const consonantFiles = audioFiles.filter(
+    (file) => file.soundType === "consonant"
+  );
+
   return (
     <div className="max-w-4xl mx-auto p-8">
       <div className="text-center mb-12">
@@ -103,9 +110,13 @@ const PronunciationLesson = () => {
         </p>
       </div>
 
-      <div>
+      {/* Phần Nguyên âm */}
+      <div className="mb-12">
+        <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
+          Nguyên âm
+        </h2>
         <div className="grid grid-cols-3 gap-4">
-          {audioFiles.map((file) => (
+          {vowelFiles.map((file) => (
             <button
               key={file.$id}
               onClick={() => handlePlay(file)}
@@ -119,16 +130,57 @@ const PronunciationLesson = () => {
               <span className="text-xl font-medium">
                 {formatFileName(file.name).split(" ").pop() || ""}
               </span>
-
               <div
                 className={`w-24 h-1.5 mt-2 rounded-full ${
                   playingId === file.$id ? "bg-blue-200" : "bg-gray-200"
                 }`}
               />
+              {file.description && (
+                <p className="text-sm text-gray-600 mt-2">{file.description}</p>
+              )}
             </button>
           ))}
         </div>
       </div>
+
+      {/* Phần Phụ âm */}
+      <div className="mb-12">
+        <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
+          Phụ âm
+        </h2>
+        <div className="grid grid-cols-3 gap-4">
+          {consonantFiles.map((file) => (
+            <button
+              key={file.$id}
+              onClick={() => handlePlay(file)}
+              className={`bg-white p-6 rounded-xl border hover:border-blue-300 transition-all flex flex-col items-center gap-2 
+                ${
+                  playingId === file.$id
+                    ? "border-blue-500 shadow-md"
+                    : "border-gray-200"
+                }`}
+            >
+              <span className="text-xl font-medium">
+                {formatFileName(file.name).split(" ").pop() || ""}
+              </span>
+              <div
+                className={`w-24 h-1.5 mt-2 rounded-full ${
+                  playingId === file.$id ? "bg-blue-200" : "bg-gray-200"
+                }`}
+              />
+              {file.description && (
+                <p className="text-sm text-gray-600 mt-2">{file.description}</p>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {audioFiles.length === 0 && (
+        <div className="text-center text-gray-500 mt-8">
+          Chưa có file âm thanh nào
+        </div>
+      )}
     </div>
   );
 };
