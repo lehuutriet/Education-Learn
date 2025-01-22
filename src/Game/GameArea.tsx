@@ -1,17 +1,24 @@
 import { useEffect, useState } from "react";
-import { Target, Brain, Rocket, Lock } from "lucide-react";
+import { Target, Brain, Rocket, Lock, Lightbulb, Filter } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { motion } from "framer-motion";
 import WordGameModal from "./WordGameModal";
 import MemoryGameModal from "./MemoryGameModal";
 import QuizGameModal from "./QuizGameModal";
+import LogicGameModal from "./LogicGameModal";
 import {
   WordGameData,
   MemoryGameData,
   QuizGameData,
   DATABASE_ID,
   COLLECTIONS,
+  RememberGameData,
+  LogicGameData,
 } from "../type/game";
 import { useAuth } from "../contexts/auth/authProvider";
+import IntelligenceGameModal from "./RememberGameModal";
+import GameDataModal from "./GameDataModal";
+
 interface Game {
   id: number;
   title: string;
@@ -19,9 +26,8 @@ interface Game {
   icon: LucideIcon;
   color: string;
   subject: string;
-
   isLocked: boolean;
-  type: "quiz" | "memory" | "puzzle" | "word";
+  type: "quiz" | "memory" | "puzzle" | "word" | "intelligence" | "logic";
 }
 
 const initialGames: Game[] = [
@@ -32,7 +38,6 @@ const initialGames: Game[] = [
     icon: Target,
     color: "#58CC02",
     subject: "Tiếng Việt",
-
     isLocked: false,
     type: "word",
   },
@@ -43,7 +48,6 @@ const initialGames: Game[] = [
     icon: Brain,
     color: "#FF9600",
     subject: "Toán",
-
     isLocked: false,
     type: "memory",
   },
@@ -54,9 +58,28 @@ const initialGames: Game[] = [
     icon: Rocket,
     color: "#CE82FF",
     subject: "Khoa học",
-
     isLocked: false,
     type: "quiz",
+  },
+  {
+    id: 4,
+    title: "Thử thách ghi nhớ",
+    description: "Rèn luyện khả năng ghi nhớ và ghép số",
+    icon: Lightbulb,
+    color: "#4B9EFA",
+    subject: "Ghi nhớ",
+    isLocked: false,
+    type: "intelligence",
+  },
+  {
+    id: 5,
+    title: "Thử thách Tư duy",
+    description: "Rèn luyện tư duy logic qua các câu đố",
+    icon: Brain,
+    color: "#FF4B4B",
+    subject: "Tư duy",
+    isLocked: false,
+    type: "logic",
   },
 ];
 
@@ -67,14 +90,27 @@ const GameArea = () => {
   const [wordGameData, setWordGameData] = useState<WordGameData[]>([]);
   const [memoryGameData, setMemoryGameData] = useState<MemoryGameData[]>([]);
   const [quizGameData, setQuizGameData] = useState<QuizGameData[]>([]);
+  const [intelligenceGameData, setIntelligenceGameData] = useState<
+    RememberGameData[]
+  >([]);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [logicGameData, setLogicGameData] = useState<LogicGameData[]>([]);
   const { databases } = useAuth();
+  const [filter, setFilter] = useState<string>("all");
+
+  const filteredGames = games.filter(
+    (game) => filter === "all" || game.subject === filter
+  );
+
+  const subjects = [...new Set(games.map((game) => game.subject))];
+
   const handleGameClick = (game: Game) => {
     if (!game.isLocked) {
       setSelectedGame(game);
       setShowGameModal(true);
     }
   };
-  // Thêm useEffect để fetch data
+
   useEffect(() => {
     const fetchGameData = async () => {
       try {
@@ -82,7 +118,6 @@ const GameArea = () => {
           DATABASE_ID,
           COLLECTIONS.word
         );
-        // Map data cho WordGame
         const wordData = response.documents.map((doc) => ({
           $id: doc.$id,
           words: doc.words,
@@ -95,7 +130,6 @@ const GameArea = () => {
           DATABASE_ID,
           COLLECTIONS.memory
         );
-        // Map data cho MemoryGame
         const memoryData = memoryResponse.documents.map((doc) => ({
           $id: doc.$id,
           equation: doc.equation,
@@ -108,7 +142,6 @@ const GameArea = () => {
           DATABASE_ID,
           COLLECTIONS.quiz
         );
-        // Map data cho QuizGame
         const quizData = quizResponse.documents.map((doc) => ({
           $id: doc.$id,
           question: doc.question,
@@ -118,13 +151,42 @@ const GameArea = () => {
           category: doc.category,
         }));
         setQuizGameData(quizData);
+
+        const intelligenceResponse = await databases.listDocuments(
+          DATABASE_ID,
+          COLLECTIONS.intelligence
+        );
+        const intelligenceData = intelligenceResponse.documents.map((doc) => ({
+          $id: doc.$id,
+          numbers: doc.numbers,
+          correctOrder: doc.correctOrder,
+          level: doc.level,
+          timeLimit: doc.timeLimit,
+        }));
+        setIntelligenceGameData(intelligenceData);
+
+        const logicResponse = await databases.listDocuments(
+          DATABASE_ID,
+          COLLECTIONS.logic
+        );
+        const logicData = logicResponse.documents.map((doc) => ({
+          $id: doc.$id,
+          type: doc.type,
+          question: doc.question,
+          data: doc.data,
+          answer: doc.answer,
+          explanation: doc.explanation,
+          level: doc.level,
+          timeLimit: doc.timeLimit,
+        }));
+        setLogicGameData(logicData);
       } catch (error) {
         console.error("Error fetching game data:", error);
       }
     };
 
     fetchGameData();
-  }, [databases]); // Thêm dependencies databases
+  }, [databases]);
 
   const renderGameModal = (game: Game) => {
     switch (game.type) {
@@ -149,68 +211,138 @@ const GameArea = () => {
             gameData={quizGameData}
           />
         );
+      case "intelligence":
+        return (
+          <IntelligenceGameModal
+            onClose={() => setShowGameModal(false)}
+            gameData={intelligenceGameData}
+          />
+        );
+      case "logic":
+        return (
+          <LogicGameModal
+            onClose={() => setShowGameModal(false)}
+            gameData={logicGameData}
+          />
+        );
       default:
         return null;
     }
   };
+
   return (
-    <div className="min-h-screen bg-gray-50 py-12">
-      <div className="max-w-6xl mx-auto px-4">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Trò chơi học tập
-          </h1>
-          <p className="text-lg text-gray-600">
-            Học tập qua các trò chơi tương tác thú vị
-          </p>
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+      <div className="bg-blue-600 text-white py-16">
+        <div className="max-w-6xl mx-auto px-4">
+          <motion.h1
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-5xl font-bold mb-4 text-center"
+          >
+            Khám Phá Học Tập Qua Trò Chơi
+          </motion.h1>
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="text-xl text-center text-blue-100"
+          >
+            Học tập chưa bao giờ thú vị đến thế!
+          </motion.p>
+        </div>
+      </div>
+
+      <div className="max-w-6xl mx-auto px-4 py-12">
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
+          <div className="flex items-center gap-4">
+            <Filter className="w-5 h-5" />
+            <div className="flex gap-2">
+              <button
+                onClick={() => setFilter("all")}
+                className={`px-4 py-2 rounded-full text-sm ${
+                  filter === "all"
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-100 hover:bg-gray-200"
+                }`}
+              >
+                Tất cả
+              </button>
+              {subjects.map((subject) => (
+                <button
+                  key={subject}
+                  onClick={() => setFilter(subject)}
+                  className={`px-4 py-2 rounded-full text-sm ${
+                    filter === subject
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-100 hover:bg-gray-200"
+                  }`}
+                >
+                  {subject}
+                </button>
+              ))}
+            </div>
+          </div>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="px-6 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 
+                     transition-colors duration-300 flex items-center gap-2"
+          >
+            <span>Thêm dữ liệu</span>
+          </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {games.map((game) => (
-            <div
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {filteredGames.map((game) => (
+            <motion.div
               key={game.id}
-              className={`bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300
-                ${!game.isLocked && "transform hover:-translate-y-1"}`}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              whileHover={{ y: -8 }}
+              className={`bg-white rounded-2xl overflow-hidden shadow-lg ${
+                !game.isLocked ? "cursor-pointer" : "opacity-75"
+              }`}
+              onClick={() => !game.isLocked && handleGameClick(game)}
             >
               <div
-                onClick={() => !game.isLocked && handleGameClick(game)}
-                className="cursor-pointer"
+                className="h-48 relative overflow-hidden"
+                style={{
+                  backgroundColor: game.isLocked
+                    ? "#f3f4f6"
+                    : `${game.color}15`,
+                }}
               >
-                <div
-                  className="h-32 flex items-center justify-center"
-                  style={{
-                    backgroundColor: game.isLocked
-                      ? "#f3f4f6"
-                      : `${game.color}15`,
-                  }}
-                >
+                <div className="absolute inset-0 flex items-center justify-center">
                   {game.isLocked ? (
-                    <Lock className="w-12 h-12 text-gray-400" />
+                    <Lock className="w-16 h-16 text-gray-400" />
                   ) : (
                     <game.icon
-                      className="w-16 h-16"
+                      className="w-24 h-24 transition-transform duration-300 transform group-hover:scale-110"
                       style={{ color: game.color }}
                     />
                   )}
                 </div>
-
-                <div className="p-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-xl font-semibold text-gray-800">
-                      {game.title}
-                    </h3>
-                  </div>
-                  <p className="text-gray-600">{game.description}</p>
-                  <div className="mt-4 text-sm text-gray-500">
+                <div className="absolute top-4 right-4">
+                  <span
+                    className="px-3 py-1 rounded-full text-sm"
+                    style={{ backgroundColor: game.color, color: "white" }}
+                  >
                     {game.subject}
-                  </div>
+                  </span>
                 </div>
               </div>
-            </div>
+
+              <div className="p-6">
+                <h3 className="text-2xl font-bold text-gray-800 mb-2">
+                  {game.title}
+                </h3>
+                <p className="text-gray-600">{game.description}</p>
+              </div>
+            </motion.div>
           ))}
         </div>
       </div>
 
+      {showAddModal && <GameDataModal onClose={() => setShowAddModal(false)} />}
       {showGameModal && selectedGame && (
         <div className="fixed inset-0 z-50">
           {renderGameModal(selectedGame)}

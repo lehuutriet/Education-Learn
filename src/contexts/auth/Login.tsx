@@ -31,16 +31,24 @@ const Login: React.FC = () => {
     setIsSubmitting(true);
     try {
       if (!navigator.onLine) {
-        throw new Error(
-          "No internet connection. Please try again when online."
-        );
+        throw new Error("Không có kết nối internet. Vui lòng thử lại sau.");
+      }
+
+      // Kiểm tra và xóa session hiện tại nếu có
+      try {
+        const currentSession = await account.getSession("current");
+        if (currentSession) {
+          await account.deleteSession("current");
+        }
+      } catch (error) {
+        // Bỏ qua lỗi nếu không có session
       }
 
       const session = await account.createEmailPasswordSession(email, password);
       const sessionKey = session.$id;
       localStorage.setItem("sessionKey", sessionKey);
       const user = await account.get();
-      setSuccess("Login successful!");
+      setSuccess("Đăng nhập thành công!");
       setError("");
 
       if (rememberMe) {
@@ -58,12 +66,12 @@ const Login: React.FC = () => {
         } else {
           navigate("/homepage");
         }
-      }, 2000); // Wait for 2 seconds before navigating
+      }, 2000);
     } catch (err: any) {
       if (err.message) {
-        setError(`Login failed: ${err.message}`);
+        setError(`Đăng nhập thất bại: ${err.message}`);
       } else {
-        setError("Login failed. Please check your credentials.");
+        setError("Đăng nhập thất bại. Vui lòng kiểm tra thông tin đăng nhập.");
       }
       setSuccess("");
     }

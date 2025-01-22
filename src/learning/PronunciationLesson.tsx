@@ -84,7 +84,6 @@ const PronunciationLesson = () => {
       setCurrentAudio(null);
     }
   };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-48">
@@ -100,87 +99,131 @@ const PronunciationLesson = () => {
   );
 
   return (
-    <div className="max-w-4xl mx-auto p-8">
-      <div className="text-center mb-12">
-        <h1 className="text-3xl font-bold text-gray-900 mb-4">
-          Cùng học phát âm tiếng Việt nào!
-        </h1>
-        <p className="text-gray-600 mb-8">
-          Tập nghe và học phát âm các âm trong tiếng Việt
-        </p>
-      </div>
-
-      {/* Phần Nguyên âm */}
-      <div className="mb-12">
-        <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
-          Nguyên âm
-        </h2>
-        <div className="grid grid-cols-3 gap-4">
-          {vowelFiles.map((file) => (
-            <button
-              key={file.$id}
-              onClick={() => handlePlay(file)}
-              className={`bg-white p-6 rounded-xl border hover:border-blue-300 transition-all flex flex-col items-center gap-2 
-                ${
-                  playingId === file.$id
-                    ? "border-blue-500 shadow-md"
-                    : "border-gray-200"
-                }`}
-            >
-              <span className="text-xl font-medium">
-                {formatFileName(file.name).split(" ").pop() || ""}
-              </span>
-              <div
-                className={`w-24 h-1.5 mt-2 rounded-full ${
-                  playingId === file.$id ? "bg-blue-200" : "bg-gray-200"
-                }`}
-              />
-              {file.description && (
-                <p className="text-sm text-gray-600 mt-2">{file.description}</p>
-              )}
-            </button>
-          ))}
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
+      <div className="max-w-4xl mx-auto px-6 py-12">
+        {/* Header Section */}
+        <div className="text-center mb-16">
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">
+            Khám Phá Âm Thanh Tiếng Việt
+          </h1>
+          <p className="text-gray-600 text-lg max-w-2xl mx-auto">
+            Tập nghe và học phát âm các âm trong tiếng Việt một cách dễ dàng và
+            hiệu quả
+          </p>
         </div>
-      </div>
 
-      {/* Phần Phụ âm */}
-      <div className="mb-12">
-        <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
-          Phụ âm
-        </h2>
-        <div className="grid grid-cols-3 gap-4">
-          {consonantFiles.map((file) => (
-            <button
-              key={file.$id}
-              onClick={() => handlePlay(file)}
-              className={`bg-white p-6 rounded-xl border hover:border-blue-300 transition-all flex flex-col items-center gap-2 
-                ${
-                  playingId === file.$id
-                    ? "border-blue-500 shadow-md"
-                    : "border-gray-200"
-                }`}
-            >
-              <span className="text-xl font-medium">
-                {formatFileName(file.name).split(" ").pop() || ""}
-              </span>
-              <div
-                className={`w-24 h-1.5 mt-2 rounded-full ${
-                  playingId === file.$id ? "bg-blue-200" : "bg-gray-200"
-                }`}
-              />
-              {file.description && (
-                <p className="text-sm text-gray-600 mt-2">{file.description}</p>
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
+        {loading ? (
+          <div className="flex items-center justify-center h-48">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+          </div>
+        ) : (
+          <div className="space-y-16">
+            {/* Nguyên âm Section */}
+            <section>
+              <div className="flex items-center justify-center gap-4 mb-8">
+                <div className="h-px bg-gray-200 flex-1" />
+                <h2 className="text-2xl font-bold text-gray-800 px-4">
+                  Nguyên âm
+                </h2>
+                <div className="h-px bg-gray-200 flex-1" />
+              </div>
 
-      {audioFiles.length === 0 && (
-        <div className="text-center text-gray-500 mt-8">
-          Chưa có file âm thanh nào
-        </div>
-      )}
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {vowelFiles.map((file) => (
+                  <button
+                    key={file.$id}
+                    onClick={() => handlePlay(file)}
+                    className={`relative group p-6 rounded-2xl transition-all duration-300
+                      ${
+                        playingId === file.$id
+                          ? "bg-blue-50 ring-2 ring-blue-500 shadow-lg"
+                          : "bg-white hover:bg-blue-50 shadow-sm hover:shadow-md border border-gray-100"
+                      }`}
+                  >
+                    <div className="flex flex-col items-center">
+                      <span className="text-3xl font-medium mb-3 text-gray-800">
+                        {formatFileName(file.name).split(" ").pop() || ""}
+                      </span>
+
+                      {/* Playing Animation */}
+                      {playingId === file.$id ? (
+                        <div className="flex space-x-1 mt-2">
+                          <div className="w-1.5 h-4 bg-blue-500 rounded-full animate-pulse" />
+                          <div className="w-1.5 h-4 bg-blue-500 rounded-full animate-pulse delay-75" />
+                          <div className="w-1.5 h-4 bg-blue-500 rounded-full animate-pulse delay-150" />
+                        </div>
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-blue-100 group-hover:bg-blue-200 transition-colors" />
+                      )}
+
+                      {file.description && (
+                        <p className="text-sm text-gray-500 mt-3">
+                          {file.description}
+                        </p>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            {/* Phụ âm Section */}
+            <section>
+              <div className="flex items-center justify-center gap-4 mb-8">
+                <div className="h-px bg-gray-200 flex-1" />
+                <h2 className="text-2xl font-bold text-gray-800 px-4">
+                  Phụ âm
+                </h2>
+                <div className="h-px bg-gray-200 flex-1" />
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {consonantFiles.map((file) => (
+                  <button
+                    key={file.$id}
+                    onClick={() => handlePlay(file)}
+                    className={`relative group p-6 rounded-2xl transition-all duration-300
+                      ${
+                        playingId === file.$id
+                          ? "bg-blue-50 ring-2 ring-blue-500 shadow-lg"
+                          : "bg-white hover:bg-blue-50 shadow-sm hover:shadow-md border border-gray-100"
+                      }`}
+                  >
+                    <div className="flex flex-col items-center">
+                      <span className="text-3xl font-medium mb-3 text-gray-800">
+                        {formatFileName(file.name).split(" ").pop() || ""}
+                      </span>
+
+                      {/* Playing Animation */}
+                      {playingId === file.$id ? (
+                        <div className="flex space-x-1 mt-2">
+                          <div className="w-1.5 h-4 bg-blue-500 rounded-full animate-pulse" />
+                          <div className="w-1.5 h-4 bg-blue-500 rounded-full animate-pulse delay-75" />
+                          <div className="w-1.5 h-4 bg-blue-500 rounded-full animate-pulse delay-150" />
+                        </div>
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-blue-100 group-hover:bg-blue-200 transition-colors" />
+                      )}
+
+                      {file.description && (
+                        <p className="text-sm text-gray-500 mt-3">
+                          {file.description}
+                        </p>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            {audioFiles.length === 0 && (
+              <div className="text-center py-12 bg-gray-50 rounded-lg">
+                <p className="text-gray-500">Chưa có file âm thanh nào</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

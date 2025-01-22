@@ -42,7 +42,7 @@ const MemoryGameModal: React.FC<MemoryGameModalProps> = ({
 
     setTimeout(() => {
       setShowEquation(false);
-    }, 1500);
+    }, 3000);
   };
 
   useEffect(() => {
@@ -50,7 +50,9 @@ const MemoryGameModal: React.FC<MemoryGameModalProps> = ({
       initGame();
     }
   }, []);
-
+  const convertOperator = (equation: string) => {
+    return equation.replace(/\*/g, "×").replace(/\//g, "÷");
+  };
   useEffect(() => {
     if (
       randomizedQuestions.length > 0 &&
@@ -67,7 +69,7 @@ const MemoryGameModal: React.FC<MemoryGameModalProps> = ({
 
       const timer = setTimeout(() => {
         setShowEquation(false);
-      }, 1000);
+      }, 3000);
 
       return () => clearTimeout(timer);
     }
@@ -148,7 +150,11 @@ const MemoryGameModal: React.FC<MemoryGameModalProps> = ({
           {/* Equation Display */}
           <div className="flex justify-center mb-8">
             <div className="text-4xl font-bold p-8 bg-gradient-to-r from-purple-100 to-blue-100 rounded-2xl shadow-lg">
-              {showEquation ? randomizedQuestions[currentLevel]?.equation : "?"}
+              {showEquation && randomizedQuestions[currentLevel]?.equation
+                ? convertOperator(
+                    randomizedQuestions[currentLevel]?.equation || ""
+                  )
+                : "?"}
             </div>
           </div>
 
