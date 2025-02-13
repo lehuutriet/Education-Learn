@@ -156,6 +156,8 @@ const Navigation = () => {
     { text: "Bài học", path: "/lessonGrid" },
     { text: "Câu chuyện", path: "/story" },
     { text: "Đề kiểm tra", path: "/exam" },
+    { text: "Ngôn ngữ kí hiệu", path: "/sign-language" },
+    { text: "Từ điển", path: "/Dictionary" },
     { text: "Thảo luận", path: "/discussion" },
     { text: "Góp ý", path: "/feedback" },
   ];
@@ -175,7 +177,7 @@ const Navigation = () => {
           z-50
         `}
       >
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
+        <div className="max-w-[1540px] mx-auto flex items-center justify-between gap-4">
           {/* Modern Logo Section */}
           <div
             className="flex items-center cursor-pointer group"
@@ -196,7 +198,7 @@ const Navigation = () => {
           </div>
 
           {/* Modern Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-1">
+          <div className="hidden md:flex items-center flex-1 space-x-1 flex-nowrap">
             {menuItems.map((item, index) => (
               <motion.button
                 key={index}
@@ -204,13 +206,13 @@ const Navigation = () => {
                 whileTap={{ scale: 0.95 }}
                 onClick={() => handleNavigation(item.path)}
                 className={`
-                  relative px-4 py-2 rounded-lg text-sm font-medium
-                  ${
-                    isActiveLink(item.path)
-                      ? "text-white bg-gradient-to-r from-purple-600 to-indigo-600 shadow-md"
-                      : "text-gray-700 hover:bg-gray-50"
-                  }
-                  transition-all duration-200
+                    whitespace-nowrap relative px-4 py-2 rounded-lg text-sm font-medium
+                    ${
+                      isActiveLink(item.path)
+                        ? "text-white bg-gradient-to-r from-purple-600 to-indigo-600 shadow-md"
+                        : "text-gray-700 hover:bg-gray-50"
+                    }
+                    transition-all duration-200
                 `}
               >
                 {item.text}
@@ -322,7 +324,17 @@ const Navigation = () => {
                     </button>
                   </div>
                 )}
-
+                {/* Favorites Section */}
+                <div className="py-2 border-t border-gray-100">
+                  <button
+                    onClick={() => navigate("/favorite-words")}
+                    className="w-full flex items-center px-4 py-3 text-gray-700 hover:bg-purple-50 
+    rounded-lg transition-colors group/item"
+                  >
+                    <i className="ri-heart-line text-lg text-gray-400 group-hover/item:text-purple-600 mr-3"></i>
+                    <span className="text-sm font-medium">Từ yêu thích</span>
+                  </button>
+                </div>
                 {/* Logout Section */}
                 <div className="p-2 border-t border-gray-100">
                   <button

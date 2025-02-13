@@ -627,15 +627,9 @@ const LectureManagement: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <span
                       className={`text-sm px-2 py-1 rounded-full ${
-                        lecture.status === "published"
-                          ? "bg-green-100 text-green-800"
-                          : "bg-yellow-100 text-yellow-800"
+                        lecture.status === "published" ? "" : ""
                       }`}
-                    >
-                      {lecture.status === "published"
-                        ? "Đã xuất bản"
-                        : "Bản nháp"}
-                    </span>
+                    ></span>
 
                     <div className="flex items-center gap-2">
                       <button

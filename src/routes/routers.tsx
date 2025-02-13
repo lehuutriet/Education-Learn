@@ -16,7 +16,11 @@ import ResetPassword from "../contexts/auth/ResetPassword";
 import LessonGrid from "../learning/LessonGrid";
 import FeedbackForm from "../Navigation/Feedback";
 import Discussion from "../Navigation/Discussion";
+import SignLanguage from "../Navigation/SignLanguage";
 import OnlineClassroom from "../Navigation/OnlineClassroom";
+import Dictionary from "../Navigation/Dictionary/Dictionary";
+import WordDetail from "../Navigation/Dictionary/WordDetail";
+import FavoriteWords from "../Navigation/FavoriteWords";
 const App = () => {
   return (
     <Suspense
@@ -70,6 +74,15 @@ export const Router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
+
+      {
+        path: "/favorite-words",
+        element: (
+          <ProtectedRoute>
+            <FavoriteWords />
+          </ProtectedRoute>
+        ),
+      },
       // Changed FileViewer to Exercise
       {
         path: "/uploadExercise",
@@ -96,6 +109,22 @@ export const Router = createBrowserRouter([
         ),
       },
       {
+        path: "/dictionary",
+        element: (
+          <ProtectedRoute>
+            <Dictionary />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "/dictionary/:wordId",
+        element: (
+          <ProtectedRoute>
+            <WordDetail />
+          </ProtectedRoute>
+        ),
+      },
+      {
         path: "/discussion",
         element: (
           <ProtectedRoute>
@@ -116,6 +145,14 @@ export const Router = createBrowserRouter([
         element: (
           <ProtectedRoute>
             <ExamManagement />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "/sign-language",
+        element: (
+          <ProtectedRoute>
+            <SignLanguage />
           </ProtectedRoute>
         ),
       },

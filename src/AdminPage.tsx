@@ -25,6 +25,8 @@ import "react-phone-input-2/lib/style.css";
 import { toast } from "react-hot-toast";
 import SpeakingListening from "./Management/Listening";
 import GameManagement from "./Management/GameManagement";
+import SignLanguageManagement from "./Management/SignLanguageManagement";
+import DictionaryManagement from "./Management/DictionaryManagement";
 interface User {
   id: string;
   name: string;
@@ -383,11 +385,8 @@ const AdminPage = () => {
         ExecutionMethod.POST
       );
 
-      console.log("Raw response:", response); // Log full response
-
       if (response?.responseBody) {
         const result = JSON.parse(response.responseBody);
-        console.log("Parsed result:", result); // Log parsed result
 
         // Kiểm tra xem mỗi user có đủ trường không
         if (Array.isArray(result)) {
@@ -395,7 +394,7 @@ const AdminPage = () => {
             ...user,
             labels: user.labels || [], // Đảm bảo labels luôn là array
           }));
-          console.log("Processed users:", processedUsers);
+
           setUsers(processedUsers);
           setAllUsers(processedUsers);
         }
@@ -440,7 +439,7 @@ const AdminPage = () => {
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">
-              Quản trị hệ thống
+              Quản lí hệ thống
             </h1>
             <p className="text-gray-600 mt-2">
               Quản lý người dùng và tài liệu hệ thống
@@ -525,6 +524,26 @@ const AdminPage = () => {
               }`}
             >
               Quản lý trò chơi
+            </button>
+            <button
+              onClick={() => setActiveTab("signlanguage")}
+              className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === "signlanguage"
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              Quản lý ngôn ngữ ký hiệu
+            </button>
+            <button
+              onClick={() => setActiveTab("dictionary")}
+              className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === "dictionary"
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              Quản lý từ điển
             </button>
           </div>
         </div>
@@ -759,6 +778,8 @@ const AdminPage = () => {
         {activeTab === "lecture" && <LectureManagement />}
         {activeTab === "speakinglistening" && <SpeakingListening />}
         {activeTab === "games" && <GameManagement />}
+        {activeTab === "signlanguage" && <SignLanguageManagement />}
+        {activeTab === "dictionary" && <DictionaryManagement />}
         {/* User Modal */}
         {isModalOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

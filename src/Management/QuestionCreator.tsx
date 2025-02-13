@@ -1,8 +1,16 @@
 import React, { useEffect, useState } from "react";
-import { Plus, X, Save, AlertCircle, Upload, Trash2 } from "lucide-react";
+import {
+  Plus,
+  X,
+  Save,
+  AlertCircle,
+  Upload,
+  Trash2,
+  Edit2,
+} from "lucide-react";
 import { ID, Models } from "appwrite";
 import { useAuth } from "../contexts/auth/authProvider";
-
+import { toast } from "react-hot-toast";
 interface Question extends Models.Document {
   type: "select" | "translate";
   prompt: string;
@@ -56,7 +64,7 @@ const QuestionCreator = () => {
   const DATABASE_ID = "674e5e7a0008e19d0ef0";
   const QUESTIONS_COLLECTION_ID = "6764ca50000079439b57";
   const BUCKET_questionsImage = "6764d934003858838718"; // Bucket ID cho ảnh câu hỏi
-
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [formData, setFormData] = useState<QuestionFormData>({
     type: "select",
@@ -100,7 +108,7 @@ const QuestionCreator = () => {
 
       // Cập nhật lại danh sách câu hỏi
       await fetchQuestions();
-
+      toast.success("Xóa câu hỏi thành công!");
       setDeleteModalOpen(false);
       setQuestionToDelete(null);
     } catch (error) {
@@ -151,7 +159,35 @@ const QuestionCreator = () => {
       }
     }
   };
+  const handleEdit = async (question: Question) => {
+    setFormData({
+      type: question.type,
+      prompt: question.prompt,
+      answer: question.answer,
+      options: question.options || ["", "", ""],
+      level: question.level,
+      category: question.category,
+    });
 
+    // Nếu có ảnh, lấy URL preview
+    if (question.imageId && question.bucketId) {
+      try {
+        const imageUrl = storage.getFilePreview(
+          question.bucketId,
+          question.imageId
+        );
+        setFormData((prev) => ({
+          ...prev,
+          imagePreview: imageUrl.toString(),
+        }));
+      } catch (error) {
+        console.error("Error loading question image:", error);
+      }
+    }
+
+    setIsModalOpen(true);
+    setEditingId(question.$id);
+  };
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
@@ -181,8 +217,6 @@ const QuestionCreator = () => {
             ? formData.options.filter((opt) => opt)
             : undefined,
         createdBy: user.$id,
-        createdAt: new Date().toISOString(),
-        active: true,
         imageId,
         bucketId,
       };
@@ -191,18 +225,34 @@ const QuestionCreator = () => {
       delete questionData.imageFile;
       delete questionData.imagePreview;
 
-      await databases.createDocument(
-        DATABASE_ID,
-        QUESTIONS_COLLECTION_ID,
-        ID.unique(),
-        questionData
-      );
+      if (editingId) {
+        // Cập nhật câu hỏi
+        await databases.updateDocument(
+          DATABASE_ID,
+          QUESTIONS_COLLECTION_ID,
+          editingId,
+          questionData
+        );
+        toast.success("Cập nhật câu hỏi thành công!");
+      } else {
+        // Thêm câu hỏi mới
+        await databases.createDocument(
+          DATABASE_ID,
+          QUESTIONS_COLLECTION_ID,
+          ID.unique(),
+          {
+            ...questionData,
+            createdAt: new Date().toISOString(),
+          }
+        );
+        toast.success("Thêm câu hỏi thành công!");
+      }
 
       await fetchQuestions();
       setIsModalOpen(false);
       resetForm();
     } catch (error: any) {
-      setError(error.message || "Không thể tạo câu hỏi");
+      setError(error.message || "Không thể lưu câu hỏi");
     } finally {
       setLoading(false);
     }
@@ -235,6 +285,8 @@ const QuestionCreator = () => {
       level: "beginner",
       category: "vocabulary",
     });
+
+    setEditingId(null);
     setError("");
   };
 
@@ -280,7 +332,11 @@ const QuestionCreator = () => {
                 </h2>
               </div>
               <button
-                onClick={() => setIsModalOpen(true)}
+                onClick={() => {
+                  resetForm(); // Reset form trước
+                  setEditingId(null); // Đảm bảo không còn trong chế độ edit
+                  setIsModalOpen(true);
+                }}
                 className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
               >
                 <Plus className="w-4 h-4" />
@@ -308,16 +364,29 @@ const QuestionCreator = () => {
                         {getVietnameseName(question.level, "level")}
                       </span>
                     </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setQuestionToDelete(question.$id);
-                        setDeleteModalOpen(true);
-                      }}
-                      className="absolute top-2 right-2 p-1 text-red-600 hover:bg-red-50 rounded-full"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="absolute top-2 right-2 flex flex-col gap-2">
+                      {" "}
+                      {/* Thêm flex-col để xếp các nút dọc */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setQuestionToDelete(question.$id);
+                          setDeleteModalOpen(true);
+                        }}
+                        className="p-1 text-red-600 hover:bg-red-50 rounded-full"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEdit(question);
+                        }}
+                        className="p-1 text-blue-600 hover:bg-blue-50 rounded-full"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -480,7 +549,9 @@ const QuestionCreator = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold">Tạo câu hỏi mới</h2>
+              <h2 className="text-2xl font-bold">
+                {editingId ? "Chỉnh sửa câu hỏi" : "Tạo câu hỏi mới"}
+              </h2>
               <button
                 onClick={() => setIsModalOpen(false)}
                 className="text-gray-400 hover:text-gray-600"
@@ -689,7 +760,7 @@ const QuestionCreator = () => {
                   ) : (
                     <>
                       <Save className="w-4 h-4" />
-                      <span>Tạo câu hỏi</span>
+                      <span>{editingId ? "Cập nhật" : "Tạo câu hỏi"}</span>
                     </>
                   )}
                 </button>

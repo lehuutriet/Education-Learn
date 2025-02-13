@@ -13,8 +13,10 @@ import {
   Eye,
   EyeOff,
   AlertCircle,
+  Edit2,
 } from "lucide-react";
 import { ID } from "appwrite";
+import toast from "react-hot-toast";
 
 interface WritingListeningContent {
   $id: string;
@@ -46,17 +48,19 @@ const Listen = () => {
   const [, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [optionPreviews, setOptionPreviews] = useState<string[]>([]);
-  const [showAnswers, setShowAnswers] = useState(false);
+  const [showAnswers, setShowAnswers] = useState<Set<string>>(new Set());
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [contentToDelete, setContentToDelete] =
     useState<WritingListeningContent | null>(null);
 
   const { databases, storage, account } = useAuth();
-
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingContent, setEditingContent] =
+    useState<WritingListeningContent | null>(null);
   const DATABASE_ID = "674e5e7a0008e19d0ef0";
   const SPEAKING_LISTENING_COLLECTION = "677ccf910016bee396ad";
   const MEDIA_BUCKET = "677cd047002021f64596";
-
+  const [currentFileName, setCurrentFileName] = useState<string>("");
   const [formData, setFormData] = useState({
     title: "",
     type: "listening" as "listening" | "writing",
@@ -176,18 +180,48 @@ const Listen = () => {
       setError("Không thể xóa ảnh. Vui lòng thử lại");
     }
   };
+  const handleEdit = async (content: WritingListeningContent) => {
+    try {
+      // Lấy thông tin file từ storage
+      const fileInfo = await storage.getFile(content.bucketId, content.fileId);
+      setCurrentFileName(fileInfo.name); // Lưu tên file
+
+      setFormData({
+        title: content.title,
+        type: content.type,
+        level: content.level,
+        category: content.category || "",
+        description: content.description,
+        transcript: content.transcript || "",
+        instructions: content.instructions || "",
+        options: content.options || ["", "", "", ""],
+        answer: content.answer || "",
+        numberOfQuestions: content.numberOfQuestions || 1,
+        writingTemplate: content.writingTemplate || "",
+        mediaFile: null,
+        imageFile: null,
+        writingPrompt: "",
+        writingInstructions: "",
+        sampleAnswer: "",
+        wordLimit: 0,
+        scoringCriteria: "",
+      });
+
+      setIsEditing(true);
+      setEditingContent(content);
+      setIsModalOpen(true);
+    } catch (error) {
+      console.error("Error getting file info:", error);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      if (formData.type === "listening" && !formData.mediaFile) {
-        throw new Error("Vui lòng chọn file");
-      }
-
       const user = await account.get();
 
-      // Upload files nếu có
+      // Xử lý file mới nếu có
       let fileId = null;
       if (formData.mediaFile) {
         const uploadedFile = await storage.createFile(
@@ -196,10 +230,17 @@ const Listen = () => {
           formData.mediaFile
         );
         fileId = uploadedFile.$id;
+
+        // Nếu đang edit và có file cũ thì xóa file cũ
+        if (isEditing && editingContent?.fileId) {
+          await storage.deleteFile(
+            editingContent.bucketId,
+            editingContent.fileId
+          );
+        }
       }
 
-      // Tạo document với các trường chung
-      const commonData = {
+      const documentData = {
         title: formData.title,
         type: formData.type,
         level: formData.level,
@@ -207,42 +248,40 @@ const Listen = () => {
         description: formData.description,
         uploadedBy: user.$id,
         uploadedAt: new Date().toISOString(),
+        transcript: formData.transcript,
+        instructions: formData.instructions,
+        fileId: fileId || (isEditing ? editingContent?.fileId : null),
+        bucketId: MEDIA_BUCKET,
+        options: formData.options,
+        answer: formData.answer,
+        numberOfQuestions: formData.numberOfQuestions,
       };
 
-      // Thêm các trường riêng theo type
-      const specificData =
-        formData.type === "listening"
-          ? {
-              transcript: formData.transcript,
-              instructions: formData.instructions,
-              fileId,
-              bucketId: MEDIA_BUCKET,
-              options: formData.options,
-              answer: formData.answer,
-              numberOfQuestions: formData.numberOfQuestions,
-            }
-          : {
-              writingPrompt: formData.writingPrompt,
-              writingInstructions: formData.writingInstructions,
-              sampleAnswer: formData.sampleAnswer,
-              wordLimit: formData.wordLimit,
-              scoringCriteria: formData.scoringCriteria,
-            };
-
-      // Tạo document với full data
-      await databases.createDocument(
-        DATABASE_ID,
-        SPEAKING_LISTENING_COLLECTION,
-        ID.unique(),
-        {
-          ...commonData,
-          ...specificData,
-        }
-      );
+      if (isEditing && editingContent) {
+        // Cập nhật document hiện có
+        await databases.updateDocument(
+          DATABASE_ID,
+          SPEAKING_LISTENING_COLLECTION,
+          editingContent.$id,
+          documentData
+        );
+        toast.success("Cập nhật bài tập thành công!");
+      } else {
+        // Tạo document mới
+        await databases.createDocument(
+          DATABASE_ID,
+          SPEAKING_LISTENING_COLLECTION,
+          ID.unique(),
+          documentData
+        );
+        toast.success("Thêm bài tập mới thành công!");
+      }
 
       await fetchContents();
       setIsModalOpen(false);
       resetForm();
+      setIsEditing(false);
+      setEditingContent(null);
     } catch (error: any) {
       setError(error.message);
     } finally {
@@ -297,6 +336,7 @@ const Listen = () => {
       await fetchContents();
       setIsDeleteModalOpen(false);
       setContentToDelete(null);
+      toast.success("Xóa bài tập thành công!");
     } catch (error) {
       console.error("Error deleting content:", error);
       setError("Không thể xóa nội dung");
@@ -327,8 +367,10 @@ const Listen = () => {
       scoringCriteria: "",
     });
     setError(null);
+    setIsEditing(false);
+    setEditingContent(null);
+    setOptionPreviews([]);
   };
-
   const renderOption = (option: string, index: number) => {
     if (option.match(/^[a-zA-Z0-9]{20,}$/)) {
       return (
@@ -353,7 +395,12 @@ const Listen = () => {
           <p className="text-gray-600">Tạo và quản lý các bài tập luyện nghe</p>
         </div>
         <button
-          onClick={() => setIsModalOpen(true)}
+          onClick={() => {
+            setIsEditing(false); // Reset trạng thái edit
+            setEditingContent(null); // Xóa content đang edit
+            resetForm(); // Reset form về trạng thái ban đầu
+            setIsModalOpen(true);
+          }}
           className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg"
         >
           <Plus className="w-4 h-4" />
@@ -381,7 +428,6 @@ const Listen = () => {
           className="px-4 py-2 border rounded-lg"
         >
           <option value="listening">Luyện nghe</option>
-          {/* <option value="writing">Luyện viết</option> */}
         </select>
       </div>
 
@@ -417,12 +463,22 @@ const Listen = () => {
                     </span>
                   </div>
                 </div>
-                <button
-                  onClick={() => handleDelete(content)}
-                  className="text-gray-400 hover:text-red-500"
-                >
-                  <Trash2 className="w-5 h-5" />
-                </button>
+                <div className="flex gap-2">
+                  {" "}
+                  {/* Thêm div để chứa cả 2 nút */}
+                  <button
+                    onClick={() => handleEdit(content)}
+                    className="text-gray-400 hover:text-blue-500"
+                  >
+                    <Edit2 className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(content)}
+                    className="text-gray-400 hover:text-red-500"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
 
               <p className="text-gray-600 mb-4">{content.description}</p>
@@ -432,17 +488,25 @@ const Listen = () => {
                   <div className="flex justify-between items-center mb-2">
                     <h4 className="font-medium">Đáp án:</h4>
                     <button
-                      onClick={() => setShowAnswers(!showAnswers)}
+                      onClick={() => {
+                        const newSet = new Set(showAnswers);
+                        if (newSet.has(content.$id)) {
+                          newSet.delete(content.$id);
+                        } else {
+                          newSet.add(content.$id);
+                        }
+                        setShowAnswers(newSet);
+                      }}
                       className="text-blue-600 hover:text-blue-700"
                     >
-                      {showAnswers ? (
+                      {showAnswers.has(content.$id) ? (
                         <EyeOff className="w-4 h-4" />
                       ) : (
                         <Eye className="w-4 h-4" />
                       )}
                     </button>
                   </div>
-                  {showAnswers && (
+                  {showAnswers.has(content.$id) && (
                     <div className="grid grid-cols-2 gap-2">
                       {content.options.map((option, index) => (
                         <div
@@ -509,7 +573,9 @@ const Listen = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold">Thêm bài tập mới</h2>
+              <h2 className="text-xl font-bold">
+                {isEditing ? "Chỉnh sửa bài tập" : "Thêm bài tập mới"}
+              </h2>
               <button onClick={() => setIsModalOpen(false)}>
                 <X className="w-6 h-6" />
               </button>
@@ -591,8 +657,36 @@ const Listen = () => {
                 <>
                   <div>
                     <label className="block text-sm font-medium mb-2">
-                      File âm thanh
+                      File âm thanh{" "}
+                      {isEditing
+                        ? "(Chọn file mới nếu muốn thay đổi)"
+                        : "(Bắt buộc)"}
                     </label>
+                    {/* Hiển thị file hiện tại nếu đang edit */}
+                    {isEditing && editingContent && (
+                      <div className="mb-3 p-3 bg-gray-50 rounded-lg">
+                        <p className="text-sm text-gray-600">
+                          File âm thanh hiện tại:
+                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Music className="w-4 h-4 text-blue-500" />
+                          <span className="text-sm font-medium">
+                            {currentFileName}
+                          </span>
+                        </div>
+                        <audio controls className="mt-2 w-full">
+                          <source
+                            src={storage.getFileView(
+                              editingContent.bucketId,
+                              editingContent.fileId
+                            )}
+                            type="audio/mpeg"
+                          />
+                        </audio>
+                      </div>
+                    )}
+
+                    {/* Input chọn file mới */}
                     <input
                       type="file"
                       onChange={(e) =>
@@ -603,7 +697,7 @@ const Listen = () => {
                       }
                       accept="audio/*,video/*"
                       className="w-full"
-                      required
+                      required={!isEditing}
                     />
                   </div>
 
@@ -698,7 +792,11 @@ const Listen = () => {
                   disabled={isLoading}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-50"
                 >
-                  {isLoading ? "Đang xử lý..." : "Tạo bài tập"}
+                  {isLoading
+                    ? "Đang xử lý..."
+                    : isEditing
+                    ? "Cập nhật"
+                    : "Tạo bài tập"}
                 </button>
               </div>
             </form>

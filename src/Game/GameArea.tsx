@@ -93,9 +93,10 @@ const GameArea = () => {
   const [intelligenceGameData, setIntelligenceGameData] = useState<
     RememberGameData[]
   >([]);
+  const [userRole, setUserRole] = useState<string>("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [logicGameData, setLogicGameData] = useState<LogicGameData[]>([]);
-  const { databases } = useAuth();
+  const { databases, account } = useAuth();
   const [filter, setFilter] = useState<string>("all");
 
   const filteredGames = games.filter(
@@ -111,6 +112,21 @@ const GameArea = () => {
     }
   };
 
+  const isStaffMember = () => {
+    return ["Admin", "Teacher"].includes(userRole);
+  };
+
+  useEffect(() => {
+    const getCurrentUser = async () => {
+      try {
+        const user = await account.get();
+        setUserRole(user.labels?.[0] || "");
+      } catch (error) {
+        console.error("Error fetching user:", error);
+      }
+    };
+    getCurrentUser();
+  }, []);
   useEffect(() => {
     const fetchGameData = async () => {
       try {
@@ -282,13 +298,15 @@ const GameArea = () => {
               ))}
             </div>
           </div>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="px-6 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 
+          {isStaffMember() && (
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="px-6 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 
                      transition-colors duration-300 flex items-center gap-2"
-          >
-            <span>Thêm dữ liệu</span>
-          </button>
+            >
+              <span>Thêm dữ liệu</span>
+            </button>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
