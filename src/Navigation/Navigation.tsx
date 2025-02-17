@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { X, Menu, ChevronDown } from "lucide-react";
+import { X, Menu } from "lucide-react";
 import { useAuth } from "../contexts/auth/authProvider";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "react-hot-toast";
@@ -9,7 +9,7 @@ import { motion } from "framer-motion";
 
 const Navigation = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isAboutDropdownOpen, setIsAboutDropdownOpen] = useState(false);
+
   const [isScrolled, setIsScrolled] = useState(false);
   const { account } = useAuth();
   const navigate = useNavigate();
@@ -148,7 +148,6 @@ const Navigation = () => {
 
   const closeMobileMenu = () => {
     setIsMobileMenuOpen(false);
-    setIsAboutDropdownOpen(false);
   };
 
   const menuItems = [
@@ -169,7 +168,7 @@ const Navigation = () => {
           w-full
           ${
             isScrolled
-              ? "fixed top-0 left-0 right-0 bg-white/90 backdrop-blur-lg shadow-lg animate-slideDown"
+              ? "fixed top-0 left-0 right-0 bg-white shadow-lg animate-slideDown"
               : "relative bg-white/50 backdrop-blur-sm"
           } 
           px-6 py-3
@@ -379,26 +378,18 @@ const Navigation = () => {
             y: isMobileMenuOpen ? 0 : -20,
           }}
           className={`
-            fixed inset-0 bg-white/95 backdrop-blur-lg z-40 md:hidden
-            ${isMobileMenuOpen ? "block" : "hidden"}
-          `}
-          style={{ top: "80px" }}
+    fixed inset-0 bg-white z-40 md:hidden overflow-hidden overflow-y-auto 
+    ${isMobileMenuOpen ? "block" : "hidden"}
+  `}
+          style={{
+            top: "80px",
+            height: "calc(100vh - 80px)", // Chiều cao = 100vh - chiều cao của header
+            scrollbarWidth: "none", // Ẩn thanh scroll trên Firefox
+            msOverflowStyle: "none", // Ẩn thanh scroll trên IE/Edge
+          }}
         >
           <div className="p-4 space-y-4">
             {/* Mobile About Section */}
-            <div>
-              <button
-                onClick={() => setIsAboutDropdownOpen(!isAboutDropdownOpen)}
-                className="flex items-center justify-between w-full p-2 text-gray-700"
-              >
-                <span>Trang chủ</span>
-                <ChevronDown
-                  className={`w-5 h-5 transform transition-transform ${
-                    isAboutDropdownOpen ? "rotate-180" : ""
-                  }`}
-                />
-              </button>
-            </div>
 
             {menuItems.map((item, index) => (
               <button

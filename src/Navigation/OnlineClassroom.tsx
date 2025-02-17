@@ -1,20 +1,86 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { JitsiMeeting } from "@jitsi/react-sdk";
 import { useAuth } from "../contexts/auth/authProvider";
 import Navigation from "./Navigation";
 import { toast } from "react-hot-toast";
-import { Copy, Video, UserPlus } from "lucide-react";
+import { Copy, Video, UserPlus, Users } from "lucide-react";
 import EducationalFooter from "../EducationalFooter/EducationalFooter";
+
+interface JitsiConfig {
+  resolution: number;
+  constraints: {
+    video: {
+      aspectRatio: number;
+      height: { ideal: number; max: number; min: number };
+      width: { ideal: number; max: number; min: number };
+      frameRate: { max: number };
+    };
+  };
+  startWithAudioMuted: boolean;
+  startWithVideoMuted: boolean;
+  enableLayerSuspension: boolean;
+  startBitrate: string;
+  disableAudioLevels: boolean;
+  disableSimulcast: boolean;
+  enableRemb: boolean;
+  enableTcc: boolean;
+  disableModeratorIndicator: boolean;
+  defaultLanguage: string;
+  enableLobby: boolean;
+  fileRecordingsEnabled: boolean;
+  liveStreamingEnabled: boolean;
+  requireDisplayName: boolean;
+  enableWelcomePage: boolean;
+  enableClosePage: boolean;
+}
 
 const OnlineClassroom = () => {
   const { account } = useAuth();
   const [roomName, setRoomName] = useState("");
   const [showJoinForm, setShowJoinForm] = useState(true);
-  const [error] = useState(false);
+
+  const [isHost, setIsHost] = useState(false);
+  const [, setParticipants] = useState<any[]>([]);
+
+  const [showParticipantsList, setShowParticipantsList] = useState(false);
+
+  const jitsiApi = useRef<any>(null);
+
   const [userData, setUserData] = useState({
     name: "",
     email: "",
+    role: "participant",
   });
+
+  const defaultConfig: JitsiConfig = {
+    resolution: 720,
+    constraints: {
+      video: {
+        aspectRatio: 16 / 9,
+        height: { ideal: 720, max: 720, min: 180 },
+        width: { ideal: 1280, max: 1280, min: 320 },
+        frameRate: { max: 30 },
+      },
+    },
+    startWithAudioMuted: true,
+    startWithVideoMuted: false,
+    enableLayerSuspension: true,
+    startBitrate: "800",
+    disableAudioLevels: true,
+    disableSimulcast: false,
+    enableRemb: true,
+    enableTcc: true,
+    disableModeratorIndicator: false,
+    defaultLanguage: "vi",
+    enableLobby: true,
+    fileRecordingsEnabled: true,
+    liveStreamingEnabled: true,
+    requireDisplayName: true,
+    enableWelcomePage: false,
+    enableClosePage: true,
+  };
+
+  const [jitsiConfig] = useState<JitsiConfig>(defaultConfig);
 
   useEffect(() => {
     const getUserData = async () => {
@@ -23,6 +89,7 @@ const OnlineClassroom = () => {
         setUserData({
           name: user.name || "",
           email: user.email || "",
+          role: user.labels?.includes("Admin") ? "host" : "participant",
         });
       } catch (error) {
         console.error("Error getting user data:", error);
@@ -50,14 +117,17 @@ const OnlineClassroom = () => {
     setShowJoinForm(false);
   };
 
-  const copyRoomCode = () => {
-    navigator.clipboard.writeText(roomName);
-    toast.success("Đã sao chép mã phòng");
-  };
-
   const handleClose = () => {
     setShowJoinForm(true);
     setRoomName("");
+    if (jitsiApi.current) {
+      jitsiApi.current.executeCommand("hangup");
+    }
+  };
+
+  const copyRoomCode = () => {
+    navigator.clipboard.writeText(roomName);
+    toast.success("Đã sao chép mã phòng");
   };
 
   return (
@@ -87,7 +157,7 @@ const OnlineClassroom = () => {
                     </div>
                     <div className="text-left">
                       <h3 className="text-lg font-semibold text-gray-900">
-                        Tạo phòng mới bằng cách ngẫu nhiên
+                        Tạo phòng mới
                       </h3>
                       <p className="text-sm text-gray-500">
                         Bắt đầu một phòng học mới
@@ -99,8 +169,7 @@ const OnlineClassroom = () => {
                 <div className="relative flex items-center gap-4">
                   <div className="flex-grow border-t border-gray-200"></div>
                   <span className="text-sm text-gray-500 bg-white px-3">
-                    hoặc là tạo bằng mã phòng và tham gia bằng cách nhập mã
-                    phòng
+                    hoặc
                   </span>
                   <div className="flex-grow border-t border-gray-200"></div>
                 </div>
@@ -115,7 +184,7 @@ const OnlineClassroom = () => {
                         type="text"
                         value={roomName}
                         onChange={(e) => setRoomName(e.target.value)}
-                        className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
+                        className="w-full pl-12 pr-4 py-4 text-lg bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
                         placeholder="Nhập mã phòng học..."
                       />
                       <UserPlus className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -164,37 +233,35 @@ const OnlineClassroom = () => {
                   </div>
                 </div>
 
-                <button
-                  onClick={copyRoomCode}
-                  className="px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-2 text-sm font-medium"
-                >
-                  <Copy className="w-4 h-4" />
-                  Sao chép mã
-                </button>
+                <div className="flex items-center space-x-4">
+                  {isHost && (
+                    <button
+                      onClick={() =>
+                        setShowParticipantsList(!showParticipantsList)
+                      }
+                      className="p-2 hover:bg-gray-100 rounded-lg"
+                    >
+                      <Users className="w-5 h-5" />
+                    </button>
+                  )}
+
+                  <button
+                    onClick={copyRoomCode}
+                    className="px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-2"
+                  >
+                    <Copy className="w-4 h-4" />
+                    Sao chép mã
+                  </button>
+                </div>
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl overflow-hidden shadow-xl">
+            <div className="bg-white rounded-2xl overflow-hidden shadow-xl relative">
               <JitsiMeeting
                 domain="meet.vgm.cloud"
                 roomName={roomName}
-                configOverwrite={{
-                  startWithAudioMuted: true,
-                  disableModeratorIndicator: true,
-                  startScreenSharing: false,
-                  enableEmailInStats: false,
-                  defaultBackgroundColor: "#2a3042",
-                  hosts: {
-                    domain: "meet.vgm.cloud",
-                    muc: "conference.meet.vgm.cloud",
-                  },
-                }}
+                configOverwrite={jitsiConfig}
                 interfaceConfigOverwrite={{
-                  DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,
-                  MOBILE_APP_PROMO: false,
-                  DEFAULT_BACKGROUND: "#2a3042", // Thêm màu nền vào interface config
-                  THEME_COLOR: "#2a3042", // Thêm theme color
-                  BACKGROUND_COLOR: "#2a3042", // Thêm background color
                   TOOLBAR_BUTTONS: [
                     "microphone",
                     "camera",
@@ -224,24 +291,37 @@ const OnlineClassroom = () => {
                     "mute-everyone",
                     "security",
                   ],
+                  DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,
+                  MOBILE_APP_PROMO: false,
+                  DEFAULT_BACKGROUND: "#2a3042",
+                  THEME_COLOR: "#2a3042",
+                  BACKGROUND_COLOR: "#2a3042",
                 }}
                 userInfo={{
                   displayName: userData.name,
                   email: userData.email,
+                }}
+                onApiReady={(api) => {
+                  jitsiApi.current = api;
+                  api.on("participantJoined", (participant) => {
+                    setParticipants((prev) => [...prev, participant]);
+                  });
+                  api.on("participantLeft", (participant) => {
+                    setParticipants((prev) =>
+                      prev.filter((p) => p.id !== participant.id)
+                    );
+                  });
+                  api.on("videoConferenceJoined", () => {
+                    if (userData.role === "host") {
+                      setIsHost(true);
+                    }
+                  });
                 }}
                 getIFrameRef={(iframeRef) => {
                   iframeRef.style.height = "700px";
                 }}
                 onReadyToClose={handleClose}
               />
-              {error && (
-                <div className="text-center p-6 bg-red-50 border-t border-red-100">
-                  <p className="text-red-600">
-                    Không thể kết nối tới máy chủ hội nghị. Vui lòng thử lại
-                    sau.
-                  </p>
-                </div>
-              )}
             </div>
           </div>
         )}
