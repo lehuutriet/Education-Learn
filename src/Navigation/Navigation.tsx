@@ -6,10 +6,10 @@ import { toast } from "react-hot-toast";
 import UserProfileModal from "./UserProfileModal";
 import NotificationComponent from "./Notification";
 import { motion } from "framer-motion";
+import LogoApp from "../image/LogoApp.jpg";
 
 const Navigation = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
   const [isScrolled, setIsScrolled] = useState(false);
   const { account } = useAuth();
   const navigate = useNavigate();
@@ -23,6 +23,7 @@ const Navigation = () => {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [lastFetch, setLastFetch] = useState<number>(0);
   const FETCH_COOLDOWN = 60000; // 1 minute cooldown
+
   // Handle scroll
   useEffect(() => {
     const handleScroll = () => {
@@ -101,6 +102,7 @@ const Navigation = () => {
       window.removeEventListener("userUpdated", handleUserUpdate);
     };
   }, [account]);
+
   const handleNavigation = (path: string) => {
     window.scrollTo(0, 0); // Scroll lên đầu trang
     navigate(path);
@@ -177,7 +179,7 @@ const Navigation = () => {
         `}
       >
         <div className="max-w-[1540px] mx-auto flex items-center justify-between gap-4">
-          {/* Modern Logo Section */}
+          {/* Logo Section - Fixed */}
           <div
             className="flex items-center cursor-pointer group"
             onClick={() => {
@@ -185,18 +187,23 @@ const Navigation = () => {
               closeMobileMenu();
             }}
           >
-            <div className="w-12 h-12 bg-gradient-to-tr from-purple-600 via-violet-600 to-indigo-600 rounded-xl flex items-center justify-center transform group-hover:scale-110 group-hover:rotate-3 transition-all duration-300 shadow-lg">
-              <span className="text-white font-bold text-xl">VGM</span>
-            </div>
-            <div className="ml-3 relative overflow-hidden">
-              <span className="text-lg font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent group-hover:scale-105 transition-transform inline-block">
-                VGM Education
-              </span>
-              <div className="absolute bottom-0 left-0 w-full h-0.5 bg-gradient-to-r from-purple-600 to-indigo-600 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></div>
+            {/* Logo Section - Logo Only */}
+            <div
+              className="cursor-pointer group"
+              onClick={() => {
+                navigate("/homepage");
+                closeMobileMenu();
+              }}
+            >
+              <img
+                src={LogoApp}
+                alt="VGM Education Logo"
+                className="h-12 w-auto rounded-xl shadow-lg transform group-hover:scale-110 group-hover:rotate-3 transition-all duration-300"
+              />
             </div>
           </div>
 
-          {/* Modern Desktop Navigation */}
+          {/* Desktop Navigation */}
           <div className="hidden md:flex items-center flex-1 space-x-1 flex-nowrap">
             {menuItems.map((item, index) => (
               <motion.button
@@ -219,7 +226,7 @@ const Navigation = () => {
             ))}
           </div>
 
-          {/* Modern Action Buttons */}
+          {/* Action Buttons */}
           <div className="hidden md:flex items-center space-x-3">
             {/* Classroom Management Button */}
             <motion.button
@@ -247,14 +254,7 @@ const Navigation = () => {
               </span>
             </motion.button>
 
-            {/* Modern Notification Button */}
-            <motion.div
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="relative"
-            ></motion.div>
-
-            {/* Modern User Profile Section */}
+            {/* User Profile Section */}
             <div className="relative group">
               <motion.button
                 whileHover={{ scale: 1.05 }}
@@ -278,13 +278,15 @@ const Navigation = () => {
                   {userData.name || "User"}
                 </span>
               </motion.button>
+
               {isProfileModalOpen && (
                 <UserProfileModal
                   isOpen={isProfileModalOpen}
                   onClose={() => setIsProfileModalOpen(false)}
                 />
               )}
-              {/* Modern Dropdown Menu */}
+
+              {/* User Dropdown Menu */}
               <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-xl border border-gray-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform group-hover:translate-y-0 translate-y-2">
                 <div className="p-4 border-b border-gray-100">
                   <p className="text-sm font-medium text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis">
@@ -294,8 +296,8 @@ const Navigation = () => {
                     {userData.email}
                   </p>
                 </div>
+
                 <div className="py-2">
-                  {/* Thêm mục thiết lập thông tin người dùng */}
                   <button
                     onClick={() => setIsProfileModalOpen(true)}
                     className="w-full flex items-center px-4 py-3 text-gray-700 hover:bg-purple-50 
@@ -323,17 +325,19 @@ const Navigation = () => {
                     </button>
                   </div>
                 )}
+
                 {/* Favorites Section */}
                 <div className="py-2 border-t border-gray-100">
                   <button
                     onClick={() => navigate("/favorite-words")}
                     className="w-full flex items-center px-4 py-3 text-gray-700 hover:bg-purple-50 
-    rounded-lg transition-colors group/item"
+                    rounded-lg transition-colors group/item"
                   >
                     <i className="ri-heart-line text-lg text-gray-400 group-hover/item:text-purple-600 mr-3"></i>
                     <span className="text-sm font-medium">Từ yêu thích</span>
                   </button>
                 </div>
+
                 {/* Logout Section */}
                 <div className="p-2 border-t border-gray-100">
                   <button
@@ -348,6 +352,8 @@ const Navigation = () => {
               </div>
             </div>
           </div>
+
+          {/* Notification Button */}
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
@@ -355,7 +361,8 @@ const Navigation = () => {
           >
             <NotificationComponent />
           </motion.button>
-          {/* Modern Mobile Menu Button */}
+
+          {/* Mobile Menu Button */}
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
@@ -370,7 +377,7 @@ const Navigation = () => {
           </motion.button>
         </div>
 
-        {/* Modern Mobile Menu */}
+        {/* Mobile Menu */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{
@@ -378,19 +385,17 @@ const Navigation = () => {
             y: isMobileMenuOpen ? 0 : -20,
           }}
           className={`
-    fixed inset-0 bg-white z-40 md:hidden overflow-hidden overflow-y-auto 
-    ${isMobileMenuOpen ? "block" : "hidden"}
-  `}
+            fixed inset-0 bg-white z-40 md:hidden overflow-hidden overflow-y-auto 
+            ${isMobileMenuOpen ? "block" : "hidden"}
+          `}
           style={{
             top: "80px",
-            height: "calc(100vh - 80px)", // Chiều cao = 100vh - chiều cao của header
-            scrollbarWidth: "none", // Ẩn thanh scroll trên Firefox
-            msOverflowStyle: "none", // Ẩn thanh scroll trên IE/Edge
+            height: "calc(100vh - 80px)",
+            scrollbarWidth: "none",
+            msOverflowStyle: "none",
           }}
         >
           <div className="p-4 space-y-4">
-            {/* Mobile About Section */}
-
             {menuItems.map((item, index) => (
               <button
                 key={index}
@@ -432,8 +437,10 @@ const Navigation = () => {
                   {userData.email}
                 </p>
               </div>
-              {/* Thêm mục thiết lập thông tin người dùng cho mobile */}
-              <button className="block w-full px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+              <button
+                className="block w-full px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                onClick={() => setIsProfileModalOpen(true)}
+              >
                 Thông tin người dùng
               </button>
               {isAdmin && (
@@ -448,7 +455,7 @@ const Navigation = () => {
                 onClick={handleLogout}
                 className="block w-full px-4 py-2 text-sm text-red-600 hover:bg-gray-50 transition-colors"
               >
-                Sign out
+                Đăng xuất
               </button>
             </div>
           </div>
