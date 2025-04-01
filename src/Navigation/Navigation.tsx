@@ -6,7 +6,7 @@ import { toast } from "react-hot-toast";
 import UserProfileModal from "./UserProfileModal";
 import NotificationComponent from "./Notification";
 import { motion } from "framer-motion";
-import LogoApp from "../image/LogoApp.jpg";
+import LogoApp from "../image/IconEdu.jpg";
 
 const Navigation = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
