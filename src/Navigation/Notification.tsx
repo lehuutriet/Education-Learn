@@ -29,6 +29,39 @@ const NotificationComponent = () => {
   const [lastFetch, setLastFetch] = useState<number>(0);
   const FETCH_COOLDOWN = 2000;
   const [isMarkingRead, setIsMarkingRead] = useState(false);
+  // Thêm state để theo dõi trạng thái đang xóa tất cả
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
+
+  // Thêm hàm để xóa tất cả thông báo
+  const deleteAllNotifications = async () => {
+    if (isDeletingAll) return; // Tránh double click
+
+    try {
+      setIsDeletingAll(true);
+
+      // Xóa từng thông báo
+      await Promise.all(
+        notifications.map((notification) =>
+          databases.deleteDocument(
+            DATABASE_ID,
+            NOTIFICATION_COLLECTION,
+            notification.$id
+          )
+        )
+      );
+
+      // Xóa cache
+      localStorage.removeItem("notifications");
+
+      // Cập nhật state
+      setNotifications([]);
+      setUnreadCount(0);
+    } catch (error) {
+      console.error("Error deleting all notifications:", error);
+    } finally {
+      setIsDeletingAll(false);
+    }
+  };
   // Thêm hàm lấy thông báo từ cache
   const getCachedNotifications = () => {
     const cached = localStorage.getItem("notifications");
@@ -321,17 +354,30 @@ const NotificationComponent = () => {
           >
             <div className="p-4 border-b border-gray-100 flex justify-between items-center">
               <h3 className="text-xl font-bold text-gray-900">Thông báo</h3>
-              {unreadCount > 0 && (
-                <button
-                  onClick={markAllAsRead}
-                  disabled={isMarkingRead}
-                  className={`text-sm text-blue-600 hover:text-blue-700 font-medium px-3 py-2 rounded-lg hover:bg-blue-50 transition-colors ${
-                    isMarkingRead ? "opacity-50 cursor-not-allowed" : ""
-                  }`}
-                >
-                  {isMarkingRead ? "Đang xử lý..." : "Đánh dấu đã đọc tất cả"}
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                {notifications.length > 0 && (
+                  <button
+                    onClick={deleteAllNotifications}
+                    disabled={isDeletingAll}
+                    className={`text-sm text-red-600 hover:text-red-700 font-medium px-3 py-2 rounded-lg hover:bg-red-50 transition-colors ${
+                      isDeletingAll ? "opacity-50 cursor-not-allowed" : ""
+                    }`}
+                  >
+                    {isDeletingAll ? "Đang xóa..." : "Xóa tất cả"}
+                  </button>
+                )}
+                {unreadCount > 0 && (
+                  <button
+                    onClick={markAllAsRead}
+                    disabled={isMarkingRead}
+                    className={`text-sm text-blue-600 hover:text-blue-700 font-medium px-3 py-2 rounded-lg hover:bg-blue-50 transition-colors ${
+                      isMarkingRead ? "opacity-50 cursor-not-allowed" : ""
+                    }`}
+                  >
+                    {isMarkingRead ? "Đang xử lý..." : "Đánh dấu đã đọc tất cả"}
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="max-h-[85vh] overflow-y-auto custom-scrollbar">

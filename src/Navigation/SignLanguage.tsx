@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Search, PlayCircle, Clock, X } from "lucide-react";
 
 import { useAuth } from "../contexts/auth/authProvider";
+import EducationalFooter from "../EducationalFooter/EducationalFooter";
 interface VideoCategory {
   id: string;
   title: string;
@@ -13,6 +14,8 @@ interface VideoCategory {
 
 interface Video {
   videoId: string;
+  videoId_trung?: string; // Video miền Trung (nếu có)
+  videoId_nam?: string; // Video miền Nam (nếu có)
   id: string;
   title: string;
   subtitle?: string;
@@ -22,10 +25,12 @@ interface Video {
   category: string;
   viewCount: number;
 }
+
 interface ImagePreviewModalProps {
   imageUrl: string;
   onClose: () => void;
 }
+
 const SignLanguage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -42,6 +47,7 @@ const SignLanguage = () => {
   const [suggestions, setSuggestions] = useState<Video[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [activeTab, setActiveTab] = useState("bac"); // State cho tab Bắc - Trung - Nam
   const itemsPerPage = 8; // Số video hiển thị trên mỗi trang
   const totalPages = Math.ceil(filteredVideos.length / itemsPerPage);
 
@@ -55,8 +61,10 @@ const SignLanguage = () => {
   const handleVideoClick = (video: Video) => {
     setSelectedVideo(video);
     setShowVideoModal(true);
-    updateViewCount(video.id); // Thêm dòng này
+    setActiveTab("bac"); // Reset tab về miền Bắc khi mở modal mới
+    updateViewCount(video.id);
   };
+
   useEffect(() => {
     const fetchVideos = async () => {
       try {
@@ -76,6 +84,8 @@ const SignLanguage = () => {
             .toString(),
           duration: doc.duration,
           videoId: doc.videoId,
+          videoId_trung: doc.videoId_trung || null,
+          videoId_nam: doc.videoId_nam || null,
           viewCount: doc.viewCount || 0,
         }));
 
@@ -87,6 +97,7 @@ const SignLanguage = () => {
 
     fetchVideos();
   }, []);
+
   const updateViewCount = async (videoId: string) => {
     try {
       // Lấy document hiện tại
@@ -122,6 +133,7 @@ const SignLanguage = () => {
       console.error("Error updating view count:", error);
     }
   };
+
   // Hàm xử lý tìm kiếm và hiển thị gợi ý
   const handleSearch = (value: string) => {
     setSearchTerm(value);
@@ -145,7 +157,9 @@ const SignLanguage = () => {
     setShowSuggestions(false);
     setSelectedVideo(video);
     setShowVideoModal(true);
+    setActiveTab("bac"); // Reset tab về miền Bắc khi mở video từ gợi ý
   };
+
   // Thêm xử lý click outside để đóng suggestions
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -227,6 +241,7 @@ const SignLanguage = () => {
     }
 
     setFilteredVideos(results);
+    setCurrentPage(1); // Reset về trang 1 khi thay đổi filter
   }, [searchTerm, selectedCategory, videos]);
 
   return (
@@ -253,7 +268,7 @@ const SignLanguage = () => {
           </motion.p>
 
           {/* Search Bar */}
-          <div className="relative max-w-xl mx-auto">
+          <div className="relative max-w-xl mx-auto search-container">
             <input
               type="text"
               placeholder="Tìm kiếm bài học..."
@@ -298,109 +313,142 @@ const SignLanguage = () => {
         </div>
       </section>
 
-      {/* Categories Section */}
-      <section className="py-16 px-4">
-        <div className="max-w-7xl mx-auto">
-          <h2 className="text-3xl font-bold mb-8">Danh mục bài học</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
-            {categories.map((category) => (
-              <motion.div
-                key={category.id}
-                whileHover={{ y: -5 }}
-                className={`bg-white rounded-2xl p-6 shadow-lg cursor-pointer
-            ${selectedCategory === category.id ? "ring-2 ring-purple-600" : ""}
-          `}
-                onClick={() => setSelectedCategory(category.id)}
-              >
-                <div className="flex flex-col h-full">
-                  <h3 className="text-xl font-semibold mb-2">
-                    {category.title}
-                  </h3>
-                  <p className="text-gray-600 mb-4 flex-grow">
-                    {category.description}
-                  </p>
-                  <div className="mt-auto">
-                    <span className="text-sm text-purple-600">
-                      {category.videos.length} bài học
-                    </span>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-      {/* Video Grid Section */}
-
+      {/* Video Grid Section với Categories ở bên phải */}
       <section className="py-16 px-4 bg-gray-50">
         <div className="max-w-7xl mx-auto">
-          <div className="flex justify-between items-center mb-8">
-            <h2 className="text-3xl font-bold">
-              {selectedCategory
-                ? categories.find((c) => c.id === selectedCategory)?.title
-                : "Tất cả bài học"}
-            </h2>
-          </div>
+          <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-8">
+            {/* Left Side: Videos Grid */}
+            <div className="w-full md:w-3/4">
+              <div className="flex justify-between items-center mb-8">
+                <h2 className="text-3xl font-bold">
+                  {selectedCategory
+                    ? categories.find((c) => c.id === selectedCategory)?.title
+                    : "Tất cả bài học"}
+                </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {currentVideos.map((video) => (
-              <motion.div
-                key={video.id}
-                whileHover={{ scale: 1.02 }}
-                className="bg-white rounded-xl overflow-hidden shadow-lg cursor-pointer"
-                onClick={() => handleVideoClick(video)} // Thêm xử lý click
-              >
-                <div className="relative">
-                  <img
-                    src={video.thumbnail}
-                    alt={video.title}
-                    className="w-full aspect-video object-cover"
-                  />
-                  <div className="absolute bottom-2 right-2 bg-black/70 text-white px-2 py-1 rounded-md text-sm flex items-center">
-                    <Clock className="w-4 h-4 mr-1" />
-                    {video.duration}
-                  </div>
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 bg-black/50 transition-opacity">
-                    <PlayCircle className="w-16 h-16 text-white" />
-                  </div>
+                {/* Mobile Category Dropdown (hiển thị trên mobile) */}
+                <div className="md:hidden">
+                  <select
+                    value={selectedCategory || "all"}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    className="p-2 rounded-lg border border-gray-300 bg-white"
+                  >
+                    {categories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.title}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <div className="p-4">
-                  <h3 className="font-semibold mb-2">{video.title}</h3>
-                  <div className="flex items-center justify-between text-sm text-gray-600">
-                    <span>{video.viewCount} lượt xem</span>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
+              </div>
 
-          {totalPages > 1 && (
-            <div className="flex justify-center mt-8 gap-2">
-              {Array.from({ length: totalPages }).map((_, index) => (
-                <button
-                  key={index}
-                  onClick={() => setCurrentPage(index + 1)}
-                  className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors
-          ${
-            currentPage === index + 1
-              ? "bg-purple-600 text-white"
-              : "bg-white text-gray-600 hover:bg-purple-50"
-          }`}
-                >
-                  {index + 1}
-                </button>
-              ))}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {currentVideos.map((video) => (
+                  <motion.div
+                    key={video.id}
+                    whileHover={{ scale: 1.02 }}
+                    className="bg-white rounded-xl overflow-hidden shadow-lg cursor-pointer"
+                    onClick={() => handleVideoClick(video)}
+                  >
+                    <div className="relative">
+                      <img
+                        src={video.thumbnail}
+                        alt={video.title}
+                        className="w-full aspect-video object-cover"
+                      />
+                      <div className="absolute bottom-2 right-2 bg-black/70 text-white px-2 py-1 rounded-md text-sm flex items-center">
+                        <Clock className="w-4 h-4 mr-1" />
+                        {video.duration}
+                      </div>
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 bg-black/50 transition-opacity">
+                        <PlayCircle className="w-16 h-16 text-white" />
+                      </div>
+                    </div>
+                    <div className="p-4">
+                      <h3 className="font-semibold mb-2">{video.title}</h3>
+                      <div className="flex items-center justify-between text-sm text-gray-600">
+                        <span>{video.viewCount} lượt xem</span>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+
+              {totalPages > 1 && (
+                <div className="flex justify-center mt-8 gap-2">
+                  {Array.from({ length: totalPages }).map((_, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setCurrentPage(index + 1)}
+                      className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors
+                        ${
+                          currentPage === index + 1
+                            ? "bg-purple-600 text-white"
+                            : "bg-white text-gray-600 hover:bg-purple-50"
+                        }`}
+                    >
+                      {index + 1}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
+
+            {/* Right Side: Categories */}
+            <div className="hidden md:block w-full md:w-1/4 bg-white rounded-2xl shadow-lg p-6">
+              <h3 className="text-xl font-bold mb-6">Danh mục bài học</h3>
+              <div className="space-y-3">
+                {categories.map((category) => (
+                  <div
+                    key={category.id}
+                    onClick={() => setSelectedCategory(category.id)}
+                    className={`p-4 rounded-xl cursor-pointer transition-all
+                      ${
+                        selectedCategory === category.id
+                          ? "bg-purple-100 border-l-4 border-purple-600"
+                          : "bg-gray-50 hover:bg-gray-100"
+                      }
+                    `}
+                  >
+                    <div className="flex flex-col">
+                      <h4
+                        className={`font-medium ${
+                          selectedCategory === category.id
+                            ? "text-purple-700"
+                            : "text-gray-800"
+                        }`}
+                      >
+                        {category.title}
+                      </h4>
+                      <p className="text-sm text-gray-500 mt-1">
+                        {category.description}
+                      </p>
+                      <span className="text-xs text-purple-600 mt-2">
+                        {category.videos.length} bài học
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </section>
+
+      {/* Video Modal with Bắc Trung Nam tabs */}
       {showVideoModal && selectedVideo && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           {/* Overlay với hiệu ứng blur */}
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+          <div
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={() => {
+              setShowVideoModal(false);
+              setSelectedVideo(null);
+            }}
+          />
 
           {/* Modal Container */}
-          <div className="relative w-full max-w-4xl bg-white dark:bg-gray-900 rounded-2xl shadow-2xl overflow-hidden transform transition-all">
+          <div className="relative w-full max-w-4xl h-[90vh] overflow-auto bg-white dark:bg-gray-900 rounded-2xl shadow-2xl transform transition-all">
             {/* Header */}
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
@@ -408,9 +456,43 @@ const SignLanguage = () => {
               </h1>
             </div>
 
+            {/* Tabs Bắc - Trung - Nam */}
+            <div className="flex border-b border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => setActiveTab("bac")}
+                className={`flex-1 py-4 font-medium text-center transition-colors ${
+                  activeTab === "bac"
+                    ? "border-b-2 border-purple-600 text-purple-600"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                Miền Bắc
+              </button>
+              <button
+                onClick={() => setActiveTab("trung")}
+                className={`flex-1 py-4 font-medium text-center transition-colors ${
+                  activeTab === "trung"
+                    ? "border-b-2 border-purple-600 text-purple-600"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                Miền Trung
+              </button>
+              <button
+                onClick={() => setActiveTab("nam")}
+                className={`flex-1 py-4 font-medium text-center transition-colors ${
+                  activeTab === "nam"
+                    ? "border-b-2 border-purple-600 text-purple-600"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                Miền Nam
+              </button>
+            </div>
+
             {/* Subtitle và Image Section */}
-            <div className="flex p-6 gap-8">
-              <div className="w-2/3 pr-6 flex items-center pl-8">
+            <div className="flex flex-col md:flex-row p-6 gap-6">
+              <div className="w-full md:w-2/3 md:pr-6 flex items-center">
                 {selectedVideo.subtitle && (
                   <h2 className="text-2xl font-bold">
                     {selectedVideo.subtitle}
@@ -419,7 +501,7 @@ const SignLanguage = () => {
               </div>
 
               {selectedVideo.imageId && (
-                <div className="w-1/3">
+                <div className="w-full md:w-1/3">
                   <div
                     className="relative group rounded-xl overflow-hidden cursor-zoom-in"
                     onClick={() => setShowImagePreview(true)}
@@ -448,20 +530,82 @@ const SignLanguage = () => {
               )}
             </div>
 
-            {/* Video Player */}
+            {/* Video Player với nội dung thay đổi theo tab */}
             <div className="px-6 pb-6">
               <div className="aspect-video rounded-xl overflow-hidden bg-black/95 shadow-lg">
-                <video
-                  src={storage
-                    .getFileView(BUCKET_ID_SIGNLANGUAGE, selectedVideo.videoId)
-                    .toString()}
-                  controls
-                  autoPlay
-                  className="w-full h-full"
-                  playsInline
-                >
-                  Trình duyệt của bạn không hỗ trợ video.
-                </video>
+                {activeTab === "bac" && (
+                  <video
+                    key={`bac-${selectedVideo.videoId}`}
+                    src={storage
+                      .getFileView(
+                        BUCKET_ID_SIGNLANGUAGE,
+                        selectedVideo.videoId
+                      )
+                      .toString()}
+                    controls
+                    autoPlay
+                    className="w-full h-full"
+                    playsInline
+                  >
+                    Trình duyệt của bạn không hỗ trợ video.
+                  </video>
+                )}
+
+                {activeTab === "trung" &&
+                  (selectedVideo.videoId_trung ? (
+                    <video
+                      key={`trung-${selectedVideo.videoId_trung}`}
+                      src={storage
+                        .getFileView(
+                          BUCKET_ID_SIGNLANGUAGE,
+                          selectedVideo.videoId_trung
+                        )
+                        .toString()}
+                      controls
+                      autoPlay
+                      className="w-full h-full"
+                      playsInline
+                    >
+                      Trình duyệt của bạn không hỗ trợ video.
+                    </video>
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center bg-gray-100 text-gray-500 p-8">
+                      <p className="text-xl font-medium mb-2">
+                        Chưa có video cho miền Trung
+                      </p>
+                      <p>
+                        Video ngôn ngữ ký hiệu cho miền Trung đang được cập nhật
+                      </p>
+                    </div>
+                  ))}
+
+                {activeTab === "nam" &&
+                  (selectedVideo.videoId_nam ? (
+                    <video
+                      key={`nam-${selectedVideo.videoId_nam}`}
+                      src={storage
+                        .getFileView(
+                          BUCKET_ID_SIGNLANGUAGE,
+                          selectedVideo.videoId_nam
+                        )
+                        .toString()}
+                      controls
+                      autoPlay
+                      className="w-full h-full"
+                      playsInline
+                    >
+                      Trình duyệt của bạn không hỗ trợ video.
+                    </video>
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center bg-gray-100 text-gray-500 p-8">
+                      <p className="text-xl font-medium mb-2">
+                        Chưa có video cho miền Nam
+                      </p>
+                      <p>
+                        Video ngôn ngữ ký hiệu cho miền Nam đang được cập nhật
+                      </p>
+                    </div>
+                  ))}
               </div>
             </div>
 
@@ -482,6 +626,8 @@ const SignLanguage = () => {
           </div>
         </div>
       )}
+
+      {/* Image Preview Modal */}
       {showImagePreview && selectedVideo?.imageId && (
         <ImagePreviewModal
           imageUrl={storage
@@ -490,6 +636,7 @@ const SignLanguage = () => {
           onClose={() => setShowImagePreview(false)}
         />
       )}
+      <EducationalFooter></EducationalFooter>
     </div>
   );
 };

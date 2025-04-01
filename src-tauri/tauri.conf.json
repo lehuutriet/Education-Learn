@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "education-learn",
+  "productName": "Education-learn",
   "version": "0.1.0",
   "identifier": "com.education-learn.app",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "education-learn",
+        "title": "Education-learn",
         "width": 800,
         "height": 600
       }

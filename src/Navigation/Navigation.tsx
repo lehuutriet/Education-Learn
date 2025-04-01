@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { X, Menu } from "lucide-react";
+import { useEffect, useState, useRef } from "react";
+import { X, Menu, User, LogOut, Settings, BookOpen } from "lucide-react";
 import { useAuth } from "../contexts/auth/authProvider";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "react-hot-toast";
@@ -11,9 +11,11 @@ import LogoApp from "../image/IconEdu.jpg";
 const Navigation = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const { account } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const navbarHeight = useRef(0);
   const [userData, setUserData] = useState({
     name: "",
     email: "",
@@ -23,14 +25,46 @@ const Navigation = () => {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [lastFetch, setLastFetch] = useState<number>(0);
   const FETCH_COOLDOWN = 60000; // 1 minute cooldown
+  const navRef = useRef<HTMLDivElement>(null);
 
-  // Handle scroll
+  // Handle scroll với throttle để tránh gọi quá nhiều lần
   useEffect(() => {
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 0);
+      // Chỉ cập nhật state khi thực sự cần thiết
+      const shouldBeScrolled = window.scrollY > 10;
+      if (isScrolled !== shouldBeScrolled) {
+        setIsScrolled(shouldBeScrolled);
+      }
     };
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
+
+    // Lưu chiều cao navbar ban đầu
+    if (navRef.current) {
+      navbarHeight.current = navRef.current.offsetHeight;
+    }
+
+    // Sử dụng passive: true để cải thiện hiệu suất
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, [isScrolled]);
+
+  // Xử lý click bên ngoài dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (
+        !target.closest(".profile-dropdown") &&
+        !target.closest(".profile-button")
+      ) {
+        setIsProfileDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
   }, []);
 
   // Update getCachedUserData to include session check
@@ -66,7 +100,7 @@ const Navigation = () => {
         email: user.email || "",
         avatarUrl: user.prefs?.avatarUrl || "",
         isAdmin: user.labels?.includes("Admin") || false,
-        sessionId: session.$id, // Add session ID to userData
+        sessionId: session.$id,
       };
 
       localStorage.setItem("currentSession", session.$id);
@@ -80,9 +114,7 @@ const Navigation = () => {
     }
   };
 
-  // Sửa lại useEffect
   useEffect(() => {
-    // Kiểm tra cache trước
     const cached = getCachedUserData();
     if (cached) {
       setIsAdmin(cached.isAdmin || false);
@@ -92,7 +124,7 @@ const Navigation = () => {
     }
 
     const handleUserUpdate = () => {
-      localStorage.removeItem("userData"); // Xóa cache khi có update
+      localStorage.removeItem("userData");
       setLastFetch(0);
       getUserData();
     };
@@ -104,20 +136,21 @@ const Navigation = () => {
   }, [account]);
 
   const handleNavigation = (path: string) => {
-    window.scrollTo(0, 0); // Scroll lên đầu trang
+    window.scrollTo(0, 0);
     navigate(path);
+    setIsMobileMenuOpen(false);
+    setIsProfileDropdownOpen(false);
   };
 
   const handleAdminNav = () => {
     navigate("/admin");
     setIsMobileMenuOpen(false);
+    setIsProfileDropdownOpen(false);
   };
 
-  // Update handleLogout to clear user data
   const handleLogout = async () => {
     try {
       await account.deleteSession("current");
-      // Clear user data
       localStorage.removeItem("userData");
       localStorage.removeItem("currentSession");
       setUserData({
@@ -142,14 +175,13 @@ const Navigation = () => {
     }
   };
 
-  // Check if a link is active
   const isActiveLink = (path: string) => {
-    if (path === "#") return false; // Ignore anchor links
+    if (path === "#") return false;
     return location.pathname.startsWith(path);
   };
 
-  const closeMobileMenu = () => {
-    setIsMobileMenuOpen(false);
+  const toggleProfileDropdown = () => {
+    setIsProfileDropdownOpen(!isProfileDropdownOpen);
   };
 
   const menuItems = [
@@ -163,305 +195,302 @@ const Navigation = () => {
     { text: "Góp ý", path: "/feedback" },
   ];
 
-  return (
-    <div className={`relative ${isScrolled ? "pt-[80px]" : ""}`}>
-      <nav
-        className={`
-          w-full
-          ${
-            isScrolled
-              ? "fixed top-0 left-0 right-0 bg-white shadow-lg animate-slideDown"
-              : "relative bg-white/50 backdrop-blur-sm"
-          } 
-          px-6 py-3
-          transition-all duration-300 ease-in-out
-          z-50
-        `}
-      >
-        <div className="max-w-[1540px] mx-auto flex items-center justify-between gap-4">
-          {/* Logo Section - Fixed */}
-          <div
-            className="flex items-center cursor-pointer group"
-            onClick={() => {
-              navigate("/homepage");
-              closeMobileMenu();
-            }}
-          >
-            {/* Logo Section - Logo Only */}
-            <div
-              className="cursor-pointer group"
-              onClick={() => {
-                navigate("/homepage");
-                closeMobileMenu();
-              }}
-            >
-              <img
-                src={LogoApp}
-                alt="VGM Education Logo"
-                className="h-12 w-auto rounded-xl shadow-lg transform group-hover:scale-110 group-hover:rotate-3 transition-all duration-300"
-              />
-            </div>
-          </div>
+  // Sử dụng một div cố định để giữ không gian khi navbar trở thành fixed
+  const navbarPlaceholder = isScrolled ? (
+    <div style={{ height: `${navbarHeight.current}px` }} />
+  ) : null;
 
-          {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center flex-1 space-x-1 flex-nowrap">
-            {menuItems.map((item, index) => (
-              <motion.button
-                key={index}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => handleNavigation(item.path)}
-                className={`
-                    whitespace-nowrap relative px-4 py-2 rounded-lg text-sm font-medium
+  return (
+    <>
+      {navbarPlaceholder}
+      <div className="relative">
+        {/* Thanh điều hướng */}
+        <nav
+          ref={navRef}
+          className={`
+            w-full
+            ${
+              isScrolled
+                ? "fixed top-0 left-0 right-0 bg-white/95 backdrop-blur-md shadow-md"
+                : "relative bg-white/80 backdrop-blur-sm"
+            } 
+            px-4 sm:px-6 py-3
+            transition-property-[background-color,box-shadow]
+            transition-duration-300
+            ease-in-out
+            z-50
+          `}
+          style={{ willChange: "transform" }}
+        >
+          <div className="max-w-[1440px] mx-auto flex items-center justify-between">
+            {/* Logo */}
+            <div
+              className="flex items-center cursor-pointer"
+              onClick={() => handleNavigation("/homepage")}
+            >
+              <div className="relative group overflow-hidden rounded-xl">
+                <img
+                  src={LogoApp}
+                  alt="VGM Education Logo"
+                  className="h-10 w-auto sm:h-12 rounded-xl shadow-sm transition-all duration-300 group-hover:scale-110"
+                />
+                <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 to-indigo-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              </div>
+              <div className="ml-3 hidden sm:block">
+                <span className="text-base sm:text-lg font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
+                  VGM Education
+                </span>
+              </div>
+            </div>
+
+            {/* Navigation Links - Desktop */}
+            <div className="hidden lg:flex items-center space-x-1">
+              {menuItems.map((item, index) => (
+                <motion.button
+                  key={index}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => handleNavigation(item.path)}
+                  className={`
+                    relative px-3 py-2 rounded-lg text-sm font-medium
                     ${
                       isActiveLink(item.path)
-                        ? "text-white bg-gradient-to-r from-purple-600 to-indigo-600 shadow-md"
-                        : "text-gray-700 hover:bg-gray-50"
+                        ? "text-white bg-gradient-to-r from-purple-600 to-indigo-600 shadow-sm"
+                        : "text-gray-700 hover:bg-gray-100"
                     }
                     transition-all duration-200
-                `}
-              >
-                {item.text}
-              </motion.button>
-            ))}
-          </div>
+                  `}
+                >
+                  {item.text}
+                </motion.button>
+              ))}
+            </div>
 
-          {/* Action Buttons */}
-          <div className="hidden md:flex items-center space-x-3">
-            {/* Classroom Management Button */}
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => navigate("/classroomManagement")}
-              className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg text-sm font-medium shadow-md hover:shadow-lg transition-all duration-200"
-            >
-              <span className="flex items-center space-x-2">
-                <i className="ri-school-line"></i>
-                <span>Lớp học</span>
-              </span>
-            </motion.button>
+            {/* Buttons & Profile - Right Side */}
+            <div className="flex items-center space-x-2 sm:space-x-3">
+              {/* Buttons for medium+ screens */}
+              <div className="hidden md:flex items-center space-x-2">
+                <motion.button
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => handleNavigation("/classroomManagement")}
+                  className="px-3 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all duration-200"
+                >
+                  <span className="flex items-center space-x-1">
+                    <BookOpen className="w-4 h-4 mr-1" />
+                    <span>Lớp học</span>
+                  </span>
+                </motion.button>
 
-            {/* Online Classroom Button */}
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => navigate("/online-classroom")}
-              className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-lg text-sm font-medium shadow-md hover:shadow-lg transition-all duration-200"
-            >
-              <span className="flex items-center space-x-2">
-                <i className="ri-video-line"></i>
-                <span>Phòng học online</span>
-              </span>
-            </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => handleNavigation("/online-classroom")}
+                  className="px-3 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all duration-200"
+                >
+                  <span className="flex items-center space-x-1">
+                    <i className="ri-video-line mr-1"></i>
+                    <span>Học online</span>
+                  </span>
+                </motion.button>
+              </div>
 
-            {/* User Profile Section */}
-            <div className="relative group">
+              {/* Notification Button */}
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="flex items-center space-x-3 p-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
+                className="p-2 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
               >
-                <div className="w-10 h-10 rounded-lg overflow-hidden shadow-md">
-                  {userData.avatarUrl ? (
-                    <img
-                      src={userData.avatarUrl}
-                      alt={userData.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center text-white font-medium">
-                      {userData.name[0] || "U"}
-                    </div>
-                  )}
-                </div>
-                <span className="text-sm font-medium text-gray-700">
-                  {userData.name || "User"}
-                </span>
+                <NotificationComponent />
               </motion.button>
 
-              {isProfileModalOpen && (
-                <UserProfileModal
-                  isOpen={isProfileModalOpen}
-                  onClose={() => setIsProfileModalOpen(false)}
-                />
-              )}
+              {/* Profile Button */}
+              <div className="relative">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={toggleProfileDropdown}
+                  className="profile-button flex items-center space-x-2 p-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
+                >
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg overflow-hidden shadow-sm">
+                    {userData.avatarUrl ? (
+                      <img
+                        src={userData.avatarUrl}
+                        alt={userData.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center text-white font-medium">
+                        {userData.name[0] || "U"}
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-sm font-medium text-gray-700 hidden sm:block">
+                    {userData.name || "User"}
+                  </span>
+                </motion.button>
 
-              {/* User Dropdown Menu */}
-              <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-xl border border-gray-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform group-hover:translate-y-0 translate-y-2">
-                <div className="p-4 border-b border-gray-100">
-                  <p className="text-sm font-medium text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis">
-                    {userData.name}
-                  </p>
-                  <p className="text-sm text-gray-500 whitespace-nowrap overflow-hidden text-ellipsis">
-                    {userData.email}
-                  </p>
-                </div>
-
-                <div className="py-2">
-                  <button
-                    onClick={() => setIsProfileModalOpen(true)}
-                    className="w-full flex items-center px-4 py-3 text-gray-700 hover:bg-purple-50 
-                    rounded-lg transition-colors group/item"
+                {/* Profile Dropdown - Sử dụng Portal để tránh vấn đề với CSS */}
+                {isProfileDropdownOpen && (
+                  <div
+                    className="profile-dropdown absolute right-0 top-full mt-2 w-64 bg-white rounded-xl shadow-lg border border-gray-100 z-50 overflow-hidden"
+                    style={{ transform: "translateZ(0)" }}
                   >
-                    <i className="ri-user-settings-line text-lg text-gray-400 group-hover/item:text-purple-600 mr-3"></i>
-                    <span className="text-sm font-medium">
-                      Thông tin cá nhân
-                    </span>
-                  </button>
-                </div>
+                    <div className="p-4 border-b border-gray-100">
+                      <p className="font-medium text-gray-900 truncate">
+                        {userData.name}
+                      </p>
+                      <p className="text-sm text-gray-500 truncate">
+                        {userData.email}
+                      </p>
+                    </div>
 
-                {/* Admin Section */}
-                {isAdmin && (
-                  <div className="p-2 border-t border-gray-100">
-                    <button
-                      onClick={handleAdminNav}
-                      className="w-full flex items-center px-4 py-3 text-gray-700 hover:bg-purple-50 
-                      rounded-lg transition-colors group/item"
-                    >
-                      <i className="ri-admin-line text-lg text-gray-400 group-hover/item:text-purple-600 mr-3"></i>
-                      <span className="text-sm font-medium">
-                        Trang Quản trị viên
-                      </span>
-                    </button>
+                    <div className="py-1">
+                      <button
+                        onClick={() => {
+                          setIsProfileModalOpen(true);
+                          setIsProfileDropdownOpen(false);
+                        }}
+                        className="w-full flex items-center px-4 py-2.5 text-gray-700 hover:bg-purple-50 transition-colors"
+                      >
+                        <User className="w-4 h-4 text-gray-500 mr-3" />
+                        <span className="text-sm">Thông tin cá nhân</span>
+                      </button>
+
+                      <button
+                        onClick={() => handleNavigation("/favorite-words")}
+                        className="w-full flex items-center px-4 py-2.5 text-gray-700 hover:bg-purple-50 transition-colors"
+                      >
+                        <i className="ri-heart-line text-gray-500 mr-3"></i>
+                        <span className="text-sm">Từ yêu thích</span>
+                      </button>
+
+                      {/* Mobile-only buttons */}
+                      <div className="block md:hidden border-t border-gray-100 mt-1 pt-1">
+                        <button
+                          onClick={() =>
+                            handleNavigation("/classroomManagement")
+                          }
+                          className="w-full flex items-center px-4 py-2.5 text-gray-700 hover:bg-purple-50 transition-colors"
+                        >
+                          <BookOpen className="w-4 h-4 text-gray-500 mr-3" />
+                          <span className="text-sm">Lớp học</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleNavigation("/online-classroom")}
+                          className="w-full flex items-center px-4 py-2.5 text-gray-700 hover:bg-purple-50 transition-colors"
+                        >
+                          <i className="ri-video-line text-gray-500 mr-3"></i>
+                          <span className="text-sm">Phòng học online</span>
+                        </button>
+                      </div>
+
+                      {isAdmin && (
+                        <button
+                          onClick={handleAdminNav}
+                          className="w-full flex items-center px-4 py-2.5 text-gray-700 hover:bg-purple-50 transition-colors"
+                        >
+                          <Settings className="w-4 h-4 text-gray-500 mr-3" />
+                          <span className="text-sm">Quản trị viên</span>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="py-1 border-t border-gray-100">
+                      <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center px-4 py-2.5 text-red-600 hover:bg-red-50 transition-colors"
+                      >
+                        <LogOut className="w-4 h-4 mr-3" />
+                        <span className="text-sm font-medium">Đăng xuất</span>
+                      </button>
+                    </div>
                   </div>
                 )}
+              </div>
 
-                {/* Favorites Section */}
-                <div className="py-2 border-t border-gray-100">
-                  <button
-                    onClick={() => navigate("/favorite-words")}
-                    className="w-full flex items-center px-4 py-3 text-gray-700 hover:bg-purple-50 
-                    rounded-lg transition-colors group/item"
-                  >
-                    <i className="ri-heart-line text-lg text-gray-400 group-hover/item:text-purple-600 mr-3"></i>
-                    <span className="text-sm font-medium">Từ yêu thích</span>
-                  </button>
-                </div>
+              {/* Mobile Menu Button */}
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="p-2 rounded-lg text-gray-600 hover:bg-gray-100 lg:hidden"
+                aria-label="Toggle menu"
+              >
+                {isMobileMenuOpen ? (
+                  <X className="w-5 h-5" />
+                ) : (
+                  <Menu className="w-5 h-5" />
+                )}
+              </motion.button>
+            </div>
+          </div>
+        </nav>
 
-                {/* Logout Section */}
-                <div className="p-2 border-t border-gray-100">
+        {/* Mobile Menu - Fixed position với style tĩnh */}
+        {isMobileMenuOpen && (
+          <div
+            className="lg:hidden fixed inset-x-0 bg-white z-40 shadow-lg overflow-hidden"
+            style={{
+              top: isScrolled
+                ? `${navbarHeight.current}px`
+                : `${navbarHeight.current}px`,
+              maxHeight: `calc(100vh - ${navbarHeight.current}px)`,
+              overflowY: "auto",
+            }}
+          >
+            <div className="px-4 py-2">
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                {menuItems.slice(0, 4).map((item, index) => (
                   <button
-                    onClick={handleLogout}
-                    className="w-full flex items-center px-4 py-3 text-red-600 hover:bg-red-50 
-                    rounded-lg transition-colors group/item"
+                    key={index}
+                    onClick={() => handleNavigation(item.path)}
+                    className={`
+                      p-3 rounded-lg text-center transition-colors
+                      ${
+                        isActiveLink(item.path)
+                          ? "bg-purple-100 text-purple-700 font-medium"
+                          : "bg-gray-50 text-gray-700"
+                      }
+                    `}
                   >
-                    <i className="ri-logout-box-line text-lg group-hover/item:text-red-600 mr-3"></i>
-                    <span className="text-sm font-medium">Đăng xuất</span>
+                    {item.text}
                   </button>
-                </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                {menuItems.slice(4).map((item, index) => (
+                  <button
+                    key={index + 4}
+                    onClick={() => handleNavigation(item.path)}
+                    className={`
+                      p-3 rounded-lg text-center transition-colors
+                      ${
+                        isActiveLink(item.path)
+                          ? "bg-purple-100 text-purple-700 font-medium"
+                          : "bg-gray-50 text-gray-700"
+                      }
+                    `}
+                  >
+                    {item.text}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
+        )}
 
-          {/* Notification Button */}
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="p-2 rounded-lg text-gray-600 hover:bg-violet-50 transition-colors"
-          >
-            <NotificationComponent />
-          </motion.button>
-
-          {/* Mobile Menu Button */}
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="p-2 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors md:hidden"
-          >
-            {isMobileMenuOpen ? (
-              <X className="w-6 h-6" />
-            ) : (
-              <Menu className="w-6 h-6" />
-            )}
-          </motion.button>
-        </div>
-
-        {/* Mobile Menu */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{
-            opacity: isMobileMenuOpen ? 1 : 0,
-            y: isMobileMenuOpen ? 0 : -20,
-          }}
-          className={`
-            fixed inset-0 bg-white z-40 md:hidden overflow-hidden overflow-y-auto 
-            ${isMobileMenuOpen ? "block" : "hidden"}
-          `}
-          style={{
-            top: "80px",
-            height: "calc(100vh - 80px)",
-            scrollbarWidth: "none",
-            msOverflowStyle: "none",
-          }}
-        >
-          <div className="p-4 space-y-4">
-            {menuItems.map((item, index) => (
-              <button
-                key={index}
-                onClick={() => {
-                  navigate(item.path);
-                  closeMobileMenu();
-                }}
-                className={`block w-full p-2 text-left transition-colors ${
-                  isActiveLink(item.path) ? "text-purple-600" : "text-gray-700"
-                }`}
-              >
-                {item.text}
-              </button>
-            ))}
-
-            <div className="pt-4 border-t border-gray-200">
-              <button
-                onClick={() => {
-                  navigate("/classroomManagement");
-                  closeMobileMenu();
-                }}
-                className={`block w-full p-2 text-gray-800 border border-gray-300 rounded mb-4 hover:bg-purple-600 hover:text-white hover:border-transparent transition-colors ${
-                  isActiveLink("/classroomManagement")
-                    ? "bg-purple-600 text-white border-transparent"
-                    : ""
-                }`}
-              >
-                Lớp học
-              </button>
-            </div>
-
-            {/* Mobile User Info */}
-            <div className="pt-4 border-t border-gray-200">
-              <div className="p-2">
-                <p className="font-medium text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis">
-                  {userData.name}
-                </p>
-                <p className="text-sm text-gray-500 whitespace-nowrap overflow-hidden text-ellipsis">
-                  {userData.email}
-                </p>
-              </div>
-              <button
-                className="block w-full px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-                onClick={() => setIsProfileModalOpen(true)}
-              >
-                Thông tin người dùng
-              </button>
-              {isAdmin && (
-                <button
-                  onClick={handleAdminNav}
-                  className="block w-full px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-                >
-                  Trang Quản trị viên
-                </button>
-              )}
-              <button
-                onClick={handleLogout}
-                className="block w-full px-4 py-2 text-sm text-red-600 hover:bg-gray-50 transition-colors"
-              >
-                Đăng xuất
-              </button>
-            </div>
-          </div>
-        </motion.div>
-      </nav>
-    </div>
+        {/* Profile Modal */}
+        {isProfileModalOpen && (
+          <UserProfileModal
+            isOpen={isProfileModalOpen}
+            onClose={() => setIsProfileModalOpen(false)}
+          />
+        )}
+      </div>
+    </>
   );
 };
 

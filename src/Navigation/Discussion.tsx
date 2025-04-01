@@ -1013,7 +1013,7 @@ const Discussion = () => {
                                     </button>
                                     <span>
                                       {new Date(
-                                        post.createdAt
+                                        comment.createdAt
                                       ).toLocaleDateString("vi-VN", {
                                         hour: "2-digit",
                                         minute: "2-digit",
