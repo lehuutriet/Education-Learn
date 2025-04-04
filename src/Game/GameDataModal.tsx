@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, Save, AlertCircle } from "lucide-react";
+import { X, Save, AlertCircle, Loader2 } from "lucide-react";
 import { useAuth } from "../contexts/auth/authProvider";
 import { ID } from "appwrite";
 import { toast } from "react-hot-toast";
@@ -10,10 +10,12 @@ interface GameDataModalProps {
 
 const GameDataModal = ({ onClose }: GameDataModalProps) => {
   const [gameType, setGameType] = useState<
-    "word" | "memory" | "quiz" | "intelligence" | "logic"
+    "word" | "memory" | "quiz" | "intelligence" | "logic" | "imageword"
   >("word");
-  const { databases } = useAuth();
+  const { databases, storage } = useAuth();
   const [error, setError] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+  const BUCKET_ID_IMAGE_MATCHING = "imagewordmatchingbucket";
   const [formData, setFormData] = useState({
     level: 1,
     words: Array(4).fill(""),
@@ -33,6 +35,10 @@ const GameDataModal = ({ onClose }: GameDataModalProps) => {
     numbers: Array(3).fill(""),
     type: "sequence",
     data: [] as string[],
+    imageword: "",
+    imageFile: null as File | null,
+    imageDescription: "",
+    imageCategory: "animals",
     explanation: "",
   });
 
@@ -43,6 +49,7 @@ const GameDataModal = ({ onClose }: GameDataModalProps) => {
     quiz: "6789dfb80024b84acbb4",
     intelligence: "678f010e002c5c4d844c",
     logic: "678f26b00005b0c70011",
+    imageword: "imagewordmatching",
   };
 
   const handleLevelChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -90,13 +97,22 @@ const GameDataModal = ({ onClose }: GameDataModalProps) => {
         return false;
       }
     }
-
+    if (gameType === "imageword") {
+      if (!formData.imageword.trim()) {
+        setError("Vui lòng nhập từ cần ghép");
+        return false;
+      }
+      if (!formData.imageFile) {
+        setError("Vui lòng tải lên hình ảnh");
+        return false;
+      }
+    }
     return true;
   };
 
   const handleSubmit = async () => {
     if (!validateForm()) return;
-
+    setIsUploading(true);
     try {
       let data;
 
@@ -171,6 +187,32 @@ const GameDataModal = ({ onClose }: GameDataModalProps) => {
           };
           break;
         }
+        case "imageword": {
+          if (!formData.imageFile) {
+            throw new Error("No image file selected");
+          }
+
+          // Upload hình ảnh trước
+          const imageUploadResult = await storage.createFile(
+            BUCKET_ID_IMAGE_MATCHING, // Thay thế bằng BUCKET_ID thực tế
+            ID.unique(),
+            formData.imageFile
+          );
+
+          data = {
+            word: formData.imageword,
+            imageId: imageUploadResult.$id,
+            level:
+              formData.level === 1
+                ? "beginner"
+                : formData.level === 2
+                ? "intermediate"
+                : "advanced",
+            description: formData.imageDescription || "",
+            category: formData.imageCategory,
+          };
+          break;
+        }
       }
 
       if (data) {
@@ -186,6 +228,8 @@ const GameDataModal = ({ onClose }: GameDataModalProps) => {
     } catch (error) {
       toast.error("Có lỗi xảy ra");
       console.error(error);
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -638,7 +682,139 @@ const GameDataModal = ({ onClose }: GameDataModalProps) => {
             </div>
           </>
         );
+      case "imageword":
+        return (
+          <>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Cấp độ
+              </label>
+              <select
+                value={formData.level}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    level: Number(e.target.value),
+                  })
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+                <option value={1}>Cơ bản</option>
+                <option value={2}>Trung bình</option>
+                <option value={3}>Nâng cao</option>
+              </select>
+            </div>
 
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Từ
+              </label>
+              <input
+                type="text"
+                value={formData.imageword}
+                onChange={(e) =>
+                  setFormData({ ...formData, imageword: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="Nhập từ cần ghép với hình ảnh"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Danh mục
+              </label>
+              <select
+                value={formData.imageCategory}
+                onChange={(e) =>
+                  setFormData({ ...formData, imageCategory: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="animals">Động vật</option>
+                <option value="foods">Thức ăn</option>
+                <option value="colors">Màu sắc</option>
+                <option value="objects">Đồ vật</option>
+                <option value="nature">Thiên nhiên</option>
+                <option value="vehicles">Phương tiện</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Mô tả (không bắt buộc)
+              </label>
+              <textarea
+                value={formData.imageDescription}
+                onChange={(e) =>
+                  setFormData({ ...formData, imageDescription: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="Nhập mô tả cho từ (không bắt buộc)"
+                rows={3}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Hình ảnh
+              </label>
+              <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg">
+                <div className="space-y-1 text-center">
+                  {formData.imageFile ? (
+                    <div className="mb-3">
+                      <img
+                        src={URL.createObjectURL(formData.imageFile)}
+                        alt="Preview"
+                        className="mx-auto h-32 object-contain"
+                      />
+                    </div>
+                  ) : (
+                    <svg
+                      className="mx-auto h-12 w-12 text-gray-400"
+                      stroke="currentColor"
+                      fill="none"
+                      viewBox="0 0 48 48"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                        strokeWidth={2}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  )}
+                  <div className="flex text-sm text-gray-600">
+                    <label
+                      htmlFor="file-upload"
+                      className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none"
+                    >
+                      <span>Tải lên hình ảnh</span>
+                      <input
+                        id="file-upload"
+                        name="file-upload"
+                        type="file"
+                        className="sr-only"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            setFormData({ ...formData, imageFile: file });
+                          }
+                        }}
+                      />
+                    </label>
+                    <p className="pl-1">hoặc kéo và thả</p>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    PNG, JPG, GIF tối đa 5MB
+                  </p>
+                </div>
+              </div>
+            </div>
+          </>
+        );
       default:
         return null;
     }
@@ -668,6 +844,7 @@ const GameDataModal = ({ onClose }: GameDataModalProps) => {
               <option value="quiz">Câu đố</option>
               <option value="intelligence">Thử thách ghi nhớ</option>
               <option value="logic">Thử thách tư duy</option>
+              <option value="imageword">Ghép từ với hình ảnh</option>
             </select>
           </div>
 
@@ -690,9 +867,19 @@ const GameDataModal = ({ onClose }: GameDataModalProps) => {
             <button
               onClick={handleSubmit}
               className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-2"
+              disabled={isUploading}
             >
-              <Save className="w-4 h-4" />
-              Thêm mới
+              {isUploading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Đang xử lý...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  <span>Thêm mới</span>
+                </>
+              )}
             </button>
           </div>
         </div>

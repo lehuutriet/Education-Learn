@@ -1,11 +1,21 @@
 import { useEffect, useState } from "react";
-import { Target, Brain, Rocket, Lock, Lightbulb, Filter } from "lucide-react";
+import {
+  Target,
+  Brain,
+  Rocket,
+  Lock,
+  Lightbulb,
+  Filter,
+  X,
+  ImageIcon,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { motion } from "framer-motion";
 import WordGameModal from "./WordGameModal";
 import MemoryGameModal from "./MemoryGameModal";
 import QuizGameModal from "./QuizGameModal";
 import LogicGameModal from "./LogicGameModal";
+import ImageWordMatching from "../learning/ImageWordMatching";
 import {
   WordGameData,
   MemoryGameData,
@@ -27,9 +37,43 @@ interface Game {
   color: string;
   subject: string;
   isLocked: boolean;
-  type: "quiz" | "memory" | "puzzle" | "word" | "intelligence" | "logic";
+  type:
+    | "quiz"
+    | "memory"
+    | "puzzle"
+    | "word"
+    | "intelligence"
+    | "logic"
+    | "imageword";
+}
+interface ImageWordMatchingModalProps {
+  onClose: () => void;
 }
 
+const ImageWordMatchingModal: React.FC<ImageWordMatchingModalProps> = ({
+  onClose,
+}) => {
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-gray-900/80 backdrop-blur-sm">
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <div className="relative w-full max-w-6xl rounded-xl bg-white shadow-xl">
+          <div className="sticky top-0 z-10 flex items-center justify-between bg-gradient-to-r from-blue-600 to-blue-800 px-6 py-4 text-white">
+            <h2 className="text-xl font-semibold">Ghép từ với hình ảnh</h2>
+            <button
+              onClick={onClose}
+              className="rounded-full p-2 hover:bg-white/10"
+            >
+              <X className="h-6 w-6" />
+            </button>
+          </div>
+          <div className="max-h-[80vh] overflow-y-auto p-6">
+            <ImageWordMatching onClose={onClose} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 const initialGames: Game[] = [
   {
     id: 1,
@@ -80,6 +124,16 @@ const initialGames: Game[] = [
     subject: "Tư duy",
     isLocked: false,
     type: "logic",
+  },
+  {
+    id: 6,
+    title: "Ghép từ với hình ảnh",
+    description: "Kết nối từ vựng với hình ảnh tương ứng",
+    icon: ImageIcon,
+    color: "#00C9A7",
+    subject: "Từ vựng",
+    isLocked: false,
+    type: "imageword",
   },
 ];
 
@@ -240,6 +294,10 @@ const GameArea = () => {
             onClose={() => setShowGameModal(false)}
             gameData={logicGameData}
           />
+        );
+      case "imageword":
+        return (
+          <ImageWordMatchingModal onClose={() => setShowGameModal(false)} />
         );
       default:
         return null;

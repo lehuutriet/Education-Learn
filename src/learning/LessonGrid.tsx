@@ -1,20 +1,23 @@
 import { useEffect, useState } from "react";
 import Navigation from "../Navigation/Navigation";
 import {
-  ShoppingBag,
-  User,
   Book,
   Home,
   BookOpenText,
   Menu,
   X,
   Gamepad,
+  Image,
+  AlignLeft,
 } from "lucide-react";
 
 import PronunciationLesson from "./PronunciationLesson";
 import LearningContent from "./LearningContent";
 import LessonDetail from "./LessonList";
 import GameArea from "../Game/GameArea";
+import Illustrations from "./Illustrations";
+import VietnameseExercises from "./VietnameseExercises";
+
 interface SidebarMenuItemProps {
   icon: React.ReactNode;
   label: string;
@@ -99,6 +102,11 @@ const LessonGrid = () => {
         return <LessonDetail />;
       case "game":
         return <GameArea />;
+      case "illustrations":
+        return <Illustrations />;
+      case "vietnameseExercises":
+        return <VietnameseExercises />;
+
       default:
         return <div className="text-center p-8">Tính năng đang phát triển</div>;
     }
@@ -180,21 +188,22 @@ const LessonGrid = () => {
                 setIsSidebarOpen(false);
               }}
             />
+
             <SidebarMenuItem
-              icon={<ShoppingBag className="w-6 h-6" />}
-              label="CỬA HÀNG"
-              active={activeTab === "store"}
+              icon={<Image className="w-6 h-6" />}
+              label="HÌNH ẢNH "
+              active={activeTab === "illustrations"}
               onClick={() => {
-                setActiveTab("store");
+                setActiveTab("illustrations");
                 setIsSidebarOpen(false);
               }}
             />
             <SidebarMenuItem
-              icon={<User className="w-6 h-6" />}
-              label="HỒ SƠ"
-              active={activeTab === "profile"}
+              icon={<AlignLeft className="w-6 h-6" />}
+              label="TIẾNG VIỆT"
+              active={activeTab === "vietnameseExercises"}
               onClick={() => {
-                setActiveTab("profile");
+                setActiveTab("vietnameseExercises");
                 setIsSidebarOpen(false);
               }}
             />
